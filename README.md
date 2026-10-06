@@ -6,6 +6,10 @@ Fork of [yoRadio](https://github.com/e2002/yoradio) for **Voltagenix Stream One*
 
 Репозиторий: <https://github.com/olegww/voltagenix-stream-one-firmware>
 
+![Player — main DWIN screen](images/player-main.png)
+
+*Player (DGUS II, 1024×600): погода / weather, станция и трек, VU, громкость и управление.*
+
 ---
 
 ## Русский
