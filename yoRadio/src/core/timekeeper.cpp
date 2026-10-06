@@ -316,9 +316,36 @@ bool _getWeather() {
         if (cursor) { sscanf(cursor, "\"speed\":%f", &wind_speed); }else{ Serial.println("##WEATHER###: wind speed not found !"); result=false; }
         cursor = strstr(line, "\"deg\":");
         if (cursor) { sscanf(cursor, "\"deg\":%d", &wind_deg); }else{ Serial.println("##WEATHER###: wind deg not found !"); result=false; }
-        press = press / 1.333;
+        const int press_hpa = press;
+        press = (int)(press / 1.333f + 0.5f);
 
         if(!result) return;
+
+        // Map OWM icon "01d"/"10n"/… → 0…9 (shared with Nextion / DWIN Variable Icon).
+        int iconofset;
+        if(strstr(icon,"01")!=NULL)      iconofset = 0;
+        else if(strstr(icon,"02")!=NULL) iconofset = 1;
+        else if(strstr(icon,"03")!=NULL) iconofset = 2;
+        else if(strstr(icon,"04")!=NULL) iconofset = 3;
+        else if(strstr(icon,"09")!=NULL) iconofset = 4;
+        else if(strstr(icon,"10")!=NULL) iconofset = 5;
+        else if(strstr(icon,"11")!=NULL) iconofset = 6;
+        else if(strstr(icon,"13")!=NULL) iconofset = 7;
+        else if(strstr(icon,"50")!=NULL) iconofset = 8;
+        else                             iconofset = 9;
+
+        auto roundi = [](float v) -> int16_t {
+          return (int16_t)(v + (v >= 0.0f ? 0.5f : -0.5f));
+        };
+        timekeeper.weather.valid = true;
+        timekeeper.weather.icon = (uint8_t)iconofset;
+        timekeeper.weather.temp_c = roundi(tempf);
+        timekeeper.weather.feels_c = roundi(tempfl);
+        timekeeper.weather.press = (uint16_t)press;
+        timekeeper.weather.press_hpa = (uint16_t)press_hpa;
+        timekeeper.weather.hum = (uint16_t)hum;
+        timekeeper.weather.wind_ms = (uint16_t)roundi(wind_speed);
+        strlcpy(timekeeper.weather.desc, desc, sizeof(timekeeper.weather.desc));
 
         #ifdef USE_NEXTION
           nextion.putcmdf("press_txt.txt=\"%dmm\"", press);
@@ -326,22 +353,12 @@ bool _getWeather() {
           char cmd[30];
           snprintf(cmd, sizeof(cmd)-1,"temp_txt.txt=\"%.1f\"", tempf);
           nextion.putcmd(cmd);
-          int iconofset;
-          if(strstr(icon,"01")!=NULL)      iconofset = 0;
-          else if(strstr(icon,"02")!=NULL) iconofset = 1;
-          else if(strstr(icon,"03")!=NULL) iconofset = 2;
-          else if(strstr(icon,"04")!=NULL) iconofset = 3;
-          else if(strstr(icon,"09")!=NULL) iconofset = 4;
-          else if(strstr(icon,"10")!=NULL) iconofset = 5;
-          else if(strstr(icon,"11")!=NULL) iconofset = 6;
-          else if(strstr(icon,"13")!=NULL) iconofset = 7;
-          else if(strstr(icon,"50")!=NULL) iconofset = 8;
-          else                             iconofset = 9;
           nextion.putcmd("cond_img.pic", 50+iconofset);
           nextion.weatherVisible(1);
         #endif
         
-        Serial.printf("##WEATHER###: description: %s, temp:%.1f C, pressure:%dmmHg, humidity:%d%%, wind: %d\n", desc, tempf, press, hum, (int)(wind_deg/22.5));
+        Serial.printf("##WEATHER###: description: %s, temp:%.1f C, pressure:%dmmHg (%dhPa), humidity:%d%%, wind:%.1f m/s, icon=%d\n",
+                      desc, tempf, press, press_hpa, hum, wind_speed, iconofset);
         #ifdef WEATHER_FMT_SHORT
         sprintf(timekeeper.weatherBuf, weatherFmt, tempf, press, hum);
         #else

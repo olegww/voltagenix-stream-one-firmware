@@ -2,6 +2,9 @@
 #define options_h
 #pragma once
 
+// Ensure board pin constants are visible before this configuration supplies defaults.
+#include <Arduino.h>
+
 #define YOVERSION "0.9.720"
 
 /*******************************************************
@@ -58,7 +61,30 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #define DSP_CUSTOM      101   // your display
 
 #ifndef DSP_MODEL
-  #define DSP_MODEL  DSP_DUMMY
+  // This fork supplies its own DGUSII backend; it is not a headless build.
+  #define DSP_MODEL  DSP_CUSTOM
+#endif
+// DGUSII DWIN is the only display backend in this fork.
+#ifndef DWIN_RX
+  #define DWIN_RX 4
+#endif
+#ifndef DWIN_TX
+  #define DWIN_TX 2
+#endif
+#ifndef DWIN_BAUD
+  #define DWIN_BAUD 115200
+#endif
+#ifndef DWIN_DEBUG
+  #define DWIN_DEBUG 0
+#endif
+#ifndef DWIN_DEBUG_BYTES
+  #define DWIN_DEBUG_BYTES 0
+#endif
+#ifndef DWIN_LEGACY_PLAYER_VP
+  #define DWIN_LEGACY_PLAYER_VP 1
+#endif
+#ifndef DWIN_TASK_STACK_SIZE
+  #define DWIN_TASK_STACK_SIZE 6144
 #endif
 #ifndef DSP_HSPI
   #define DSP_HSPI   false      // use HSPI for displays (miso=12, mosi=13, clk=14) instead of VSPI (by default)

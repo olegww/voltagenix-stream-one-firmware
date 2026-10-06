@@ -108,16 +108,14 @@ void setup() {
 void loop() {
   timekeeper.loop1();
   telnet.loop();
-  if (network.status == CONNECTED || network.status==SDREADY) {
-    player.loop();
+  // Always drain the player queue so DWIN buttons work in AP commissioning.
+  player.loop();
+  if (network.status == CONNECTED || network.status == SDREADY) {
 #if USE_OTA
     ArduinoOTA.handle();
 #endif
   }
   loopControls();
-  #ifdef NETSERVER_LOOP1
-  netserver.loop();
-  #endif
 }
 
 #include "core/audiohandlers.h"

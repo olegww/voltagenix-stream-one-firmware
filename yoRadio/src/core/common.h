@@ -2,6 +2,8 @@
 #define COMMON_H
 #pragma once
 
+#include <stdint.h>
+
 enum displayMode_e { PLAYER, VOL, STATIONS, NUMBERS, LOST, UPDATING, INFO, SETTINGS, TIMEZONE, WIFI, CLEAR, SLEEPING, SDCHANGE, SCREENSAVER, SCREENBLANK };
 enum pages_e      : uint8_t  { PG_PLAYER=0, PG_DIALOG=1, PG_PLAYLIST=2, PG_SCREENSAVER=3 };
 

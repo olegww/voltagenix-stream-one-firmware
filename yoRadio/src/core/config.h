@@ -5,7 +5,7 @@
 #include <SPI.h>
 #include <SPIFFS.h>
 #include <EEPROM.h>
-#include "../displays/widgets/widgetsconfig.h" //BitrateFormat
+enum BitrateFormat { BF_UNKNOWN, BF_MP3, BF_AAC, BF_FLAC, BF_OGG, BF_WAV };
 
 #define EEPROM_SIZE       768
 #define EEPROM_START      500

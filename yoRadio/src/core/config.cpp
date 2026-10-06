@@ -936,6 +936,7 @@ bool Config::initNetwork() {
 }
 
 void Config::setBrightness(bool dosave){
+  display.setContrast();
 #if BRIGHTNESS_PIN!=255
   if(!store.dspon && dosave) {
     display.wakeup();

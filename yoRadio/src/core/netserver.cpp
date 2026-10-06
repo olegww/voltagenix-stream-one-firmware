@@ -12,8 +12,6 @@
 #include "controls.h"
 #include "commandhandler.h"
 #include "timekeeper.h"
-#include "../displays/dspcore.h"
-#include "../displays/widgets/widgetsconfig.h" //BitrateFormat
 
 #if DSP_MODEL==DSP_DUMMY
 #define DUMMYDISPLAY
@@ -79,6 +77,25 @@ bool NetServer::begin(bool quiet) {
   while(nsQueue==NULL){;}
 
   webserver.on("/", HTTP_ANY, handleIndex);
+  // /settings.html uses stock SPA (index_html + options.html.gz) via handleNotFound —
+  // do not override with a custom page (weather/settings groups live there).
+  // Playlist uploads must use an explicit route. Relying on the catch-all
+  // handler made the result dependent on static-file handler selection.
+  webserver.on("/upload", HTTP_POST,
+    [](AsyncWebServerRequest *request) {
+      if (request->hasParam("plfile", true, true)) {
+        netserver.importRequest = IMPL;
+        Serial.println("[WEB] playlist upload received");
+        request->send(200, "text/plain", "OK");
+      } else if (request->hasParam("wifile", true, true)) {
+        netserver.importRequest = IMWIFI;
+        Serial.println("[WEB] Wi-Fi file upload received");
+        request->send(200, "text/plain", "OK");
+      } else {
+        Serial.println("[WEB] upload rejected: file field is missing");
+        request->send(400, "text/plain", "Upload file is missing");
+      }
+    }, handleUpload);
   webserver.onNotFound(handleNotFound);
   webserver.onFileUpload(handleUpload);
 
@@ -87,11 +104,11 @@ bool NetServer::begin(bool quiet) {
   DefaultHeaders::Instance().addHeader(F("Access-Control-Allow-Origin"), F("*"));
   DefaultHeaders::Instance().addHeader(F("Access-Control-Allow-Headers"), F("content-type"));
 #endif
+  websocket.onEvent(onWsEvent);
+  webserver.addHandler(&websocket);
   webserver.begin();
   //if(strlen(config.store.mdnsname)>0)
   //  MDNS.begin(config.store.mdnsname);
-  websocket.onEvent(onWsEvent);
-  webserver.addHandler(&websocket);
   if(!quiet) Serial.println("done");
   return true;
 }
@@ -142,7 +159,9 @@ void NetServer::chunkedHtmlPage(const String& contentType, AsyncWebServerRequest
 #else
   #define DSP_CAN_FLIPPED false
 #endif
-#if !defined(HIDE_WEATHER) && (!defined(DUMMYDISPLAY) && !defined(USE_NEXTION))
+// DWIN/DGUS fork always exposes weather settings (OpenWeatherMap → display VPs).
+// Stock yoRadio hides the group for DSP_DUMMY / some LCD builds via DUMMYDISPLAY.
+#if !defined(HIDE_WEATHER)
   #define SHOW_WEATHER  true
 #else
   #define SHOW_WEATHER  false
@@ -331,7 +350,12 @@ void NetServer::loop() {
   processQueue();
   websocket.cleanupClients();
   switch (importRequest) {
-    case IMPL:    importPlaylist();  importRequest = IMDONE; break;
+    case IMPL: {
+      const bool imported = importPlaylist();
+      Serial.println(imported ? "[WEB] playlist import complete" : "[WEB] playlist import rejected: invalid file");
+      importRequest = IMDONE;
+      break;
+    }
     case IMWIFI:  config.saveWifi(); importRequest = IMDONE; break;
     default:      break;
   }
@@ -418,11 +442,14 @@ bool NetServer::importPlaylist() {
   _readPlaylistLine(tempfile, linePl, sizeof(linePl)-1);
   if (config.parseCSV(linePl, nsBuf, nsBuf2, sOvol)) {
     tempfile.close();
+    if (SPIFFS.exists(PLAYLIST_PATH)) SPIFFS.remove(PLAYLIST_PATH);
+    if (SPIFFS.exists(INDEX_PATH)) SPIFFS.remove(INDEX_PATH);
     SPIFFS.rename(TMP_PATH, PLAYLIST_PATH);
     requestOnChange(PLAYLISTSAVED, 0);
     return true;
   }
   if (config.parseJSON(linePl, nsBuf, nsBuf2, sOvol)) {
+    if (SPIFFS.exists(INDEX_PATH)) SPIFFS.remove(INDEX_PATH);
     File playlistfile = SPIFFS.open(PLAYLIST_PATH, "w");
     snprintf(linePl, sizeof(linePl)-1, "%s\t%s\t%d", nsBuf, nsBuf2, 0);
     playlistfile.println(linePl);
@@ -461,13 +488,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
   static int freeSpace = 0;
   if(request->url()=="/upload"){
     if (!index) {
-      if(filename!="tempwifi.csv"){
-        //player.sendCommand({PR_STOP, 0});
-        if(SPIFFS.exists(PLAYLIST_PATH)) SPIFFS.remove(PLAYLIST_PATH);
-        if(SPIFFS.exists(INDEX_PATH)) SPIFFS.remove(INDEX_PATH);
-        if(SPIFFS.exists(PLAYLIST_SD_PATH)) SPIFFS.remove(PLAYLIST_SD_PATH);
-        if(SPIFFS.exists(INDEX_SD_PATH)) SPIFFS.remove(INDEX_SD_PATH);
-      }
+      // Preserve the active playlist until importPlaylist() validates the upload.
       freeSpace = (float)SPIFFS.totalBytes()/100*68-SPIFFS.usedBytes();
       request->_tempFile = SPIFFS.open(TMP_PATH , "w");
     }else{
@@ -570,18 +591,6 @@ void handleNotFound(AsyncWebServerRequest * request) {
   
   if (request->method() == HTTP_POST) {
     if(request->url()=="/webboard"){ request->redirect("/"); return; } // <--post files from /data/www
-    if(request->url()=="/upload"){ // <--upload playlist.csv or wifi.csv
-      if (request->hasParam("plfile", true, true)) {
-        netserver.importRequest = IMPL;
-        request->send(200);
-      } else if (request->hasParam("wifile", true, true)) {
-        netserver.importRequest = IMWIFI;
-        request->send(200);
-      } else {
-        request->send(404);
-      }
-      return;
-    }
     if(request->url()=="/update"){ // <--upload firmware
       shouldReboot = !Update.hasError();
       AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot ? "OK" : updateError());
@@ -617,6 +626,26 @@ void handleNotFound(AsyncWebServerRequest * request) {
 }
 
 void handleIndex(AsyncWebServerRequest * request) {
+  // AP setup must not depend on SPIFFS assets or a WebSocket connection.
+  // It is the only page needed before credentials have been saved.
+  if(!config.emptyFS && network.status != CONNECTED) {
+    if(request->method() == HTTP_POST) {
+      if(request->hasParam("ssid", true) && request->hasParam("pass", true)) {
+        const String ssid = request->getParam("ssid", true)->value();
+        const String pass = request->getParam("pass", true)->value();
+        if(ssid.length() > 0 && pass.length() > 0) {
+          snprintf(netserver.nsBuf, sizeof(netserver.nsBuf), "%s\t%s\n", ssid.c_str(), pass.c_str());
+          request->send(200, "text/html", "<meta charset=\"utf-8\"><p>Данные Wi-Fi сохранены. Радио перезагружается.</p>");
+          config.saveWifiFromNextion(netserver.nsBuf);
+          return;
+        }
+      }
+      request->send(400, "text/plain", "SSID and password are required");
+      return;
+    }
+    request->send_P(200, "text/html", ap_setup_html);
+    return;
+  }
   if(config.emptyFS){
     if(request->url()=="/" && request->method() == HTTP_GET ) { request->send_P(200, "text/html", emptyfs_html); return; }
     if(request->url()=="/" && request->method() == HTTP_POST) {
