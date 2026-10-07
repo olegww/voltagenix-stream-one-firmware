@@ -81,21 +81,21 @@ Arduino IDE: открыть `yoRadio/yoRadio.ino`, плата **ESP32-S3 Dev Mod
 
 ### HMI (DGUS Tool)
 
-Документация в [`hmi/`](hmi/):
+Документация на русском: [`hmi/README.ru.md`](hmi/README.ru.md).
 
 | Документ | Содержание |
 |---|---|
-| [hmi/README.md](hmi/README.md) | обзор проекта HMI |
-| [DWIN_SCREEN_MAP.md](hmi/DWIN_SCREEN_MAP.md) | карта VP, wiring, Serial-чеклист |
-| [MINIMAL_PLAYER.md](hmi/MINIMAL_PLAYER.md) | первый экран Player |
-| [PLAYLIST_PAGE.md](hmi/PLAYLIST_PAGE.md) | плейлист |
-| [WEATHER.md](hmi/WEATHER.md) | погода |
-| [SETTINGS_PAGE.md](hmi/SETTINGS_PAGE.md) | хаб настроек и связанные страницы |
-| [FONT_GUIDE.md](hmi/FONT_GUIDE.md) | классические `.bin` шрифты |
+| [README.ru.md](hmi/README.ru.md) | обзор проекта HMI |
+| [DWIN_SCREEN_MAP.ru.md](hmi/DWIN_SCREEN_MAP.ru.md) | карта VP, wiring, Serial-чеклист |
+| [MINIMAL_PLAYER.ru.md](hmi/MINIMAL_PLAYER.ru.md) | первый экран Player |
+| [PLAYLIST_PAGE.ru.md](hmi/PLAYLIST_PAGE.ru.md) | плейлист |
+| [WEATHER.ru.md](hmi/WEATHER.ru.md) | погода |
+| [SETTINGS_PAGE.ru.md](hmi/SETTINGS_PAGE.ru.md) | хаб настроек и связанные страницы |
+| [FONT_GUIDE.ru.md](hmi/FONT_GUIDE.ru.md) | классические `.bin` шрифты |
 
 VP приложения: от `0x5000`. Системные DGUS: `0x0082` (яркость), `0x0084` (страница). Готовый пакет с SD → `DWIN_SET` на FAT32 microSD при выключенной панели.
 
-Отладка кнопок: `DWIN_DEBUG 1` в `myoptions.h`, Serial 115200 — см. чеклист в `DWIN_SCREEN_MAP.md`.
+Отладка кнопок: `DWIN_DEBUG 1` в `myoptions.h`, Serial 115200 — см. чеклист в [DWIN_SCREEN_MAP.ru.md](hmi/DWIN_SCREEN_MAP.ru.md).
 
 ### Отличия от upstream yoRadio
 

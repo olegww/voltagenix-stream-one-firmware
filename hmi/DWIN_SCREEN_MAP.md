@@ -1,8 +1,10 @@
 # DGUSII screen, VP, and wiring map
 
+**English** · [Русский](DWIN_SCREEN_MAP.ru.md)
+
 This is the definitive interface contract for the `DMG10600C070_03WTC` (1024x600) display. DGUS values are 16-bit words, high byte first.
 
-Minimal Player screen build guide: [MINIMAL_PLAYER.md](MINIMAL_PLAYER.md).
+Minimal Player screen build guide: [MINIMAL_PLAYER.md](MINIMAL_PLAYER.md) ([RU](MINIMAL_PLAYER.ru.md)).
 
 ## Address rule
 
@@ -51,7 +53,7 @@ Do **not** reuse VP addresses from the pulseoximeter project in `src/` (`0x6800`
 | `0x5316` / `0x5318` / `0x531A` | word | Pressure mmHg / humidity % / wind×10 |
 | `0x5620` | text, length ≤ 48 | Weather description |
 
-Playlist: [PLAYLIST_PAGE.md](PLAYLIST_PAGE.md). Weather: [WEATHER.md](WEATHER.md). Settings hub: [SETTINGS_PAGE.md](SETTINGS_PAGE.md).
+Playlist: [PLAYLIST_PAGE.md](PLAYLIST_PAGE.md) ([RU](PLAYLIST_PAGE.ru.md)). Weather: [WEATHER.md](WEATHER.md) ([RU](WEATHER.ru.md)). Settings: [SETTINGS_PAGE.md](SETTINGS_PAGE.md) ([RU](SETTINGS_PAGE.ru.md)).
 
 Яркость дисплея настраивается **локально в DGUS** (не через ESP / page 3). VP `0x5300` / `0x540E` в контракте остаются, но на хаб настроек не выносятся.
 
