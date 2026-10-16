@@ -1,116 +1,112 @@
-# Settings — page 3 (хаб) и связанные экраны
+# Settings hub and related screens
 
-Яркость экрана **не выносится на ESP**: настраивается средствами самого DGUS / меню дисплея, без VP `5300` / `540E` на этой странице.
+**English** · [Русский](SETTINGS_PAGE.ru.md)
 
-Page id: **3** (`dwin_vp::SETTINGS`). Вход с Player: VP `5400`, key **`0006`**.
+Screen brightness is set **in the panel menu**, not via the ESP. Do not put brightness VPs on this page.
 
-Все кнопки: Return Key Code, VP **`5400`**, auto-upload ON, **Page switching = -1** (страницу переключает ESP).
+Page **3**. Open from Player: VP `5400`, key `0006`.
 
-## Page 3 — хаб «Настройки»
+All buttons: Return Key Code, VP `5400`, auto-upload ON, Page switching = −1 (firmware changes pages).
 
-Статичный фон + навигация:
+## Page 3 — hub
 
-| Кнопка | Key (hex) | Действие |
+| Button | Key | Goes to |
 |---|---:|---|
-| Назад / Player | `0004` | page 1 |
-| Звук / EQ | `0008` | page 5 (Audio) |
-| Время | `0009` | page 6 (Time) |
-| Сеть | `0007` | page 4 (Wi‑Fi статус) |
-| О системе | `000A` | page 7 (Info) |
-| Будильники / Alarms | `001B` | page 10 (Alarms) |
-| Выкл. экран | `000B` | SCREEN_OFF |
+| Back / Player | `0004` | Page 1 |
+| Sound / EQ | `0008` | Page 5 |
+| Time | `0009` | Page 6 |
+| Network | `0007` | Page 4 |
+| About | `000A` | Page 7 |
+| Alarms | `001B` | Page 10 |
+| Screen off | `000B` | Turns backlight off |
 
-Опционально на хабе (read-only): RSSI `50A0`, краткий IP/SSID если заполните Text Display на `50B0` / `5500` (пишет ESP при наличии данных).
+Optional on the hub: RSSI `50A0`, short IP/SSID (`50B0` / `56A0`).
 
-**Не класть на хаб:** яркость, API погоды, IR, загрузку плейлиста.
+Do not put here: brightness, weather API, IR, playlist upload.
 
 ## Page 5 — Audio (EQ)
 
-Changes apply **live** (audio + EEPROM). No separate Save/OK button.
+Changes apply **immediately**; no separate Save button.
 
-| Display (Data Variable Int, signed) | VP | Input (Drag / IncDec) | Range |
+| Display | VP | Input | Range |
 |---|---:|---|---|
-| Bass | `5302` | `5406` | **−40…+6** dB |
-| Middle | `5304` | `5408` | **−40…+6** dB |
-| Treble | `5306` | `540A` | **−40…+6** dB |
-| Balance | `5308` | `540C` | **−16…+16** |
-| Volume (opt.) | `50D4` | `5404` or keys 15/16 | 0…254 |
+| Bass | `5302` | `5406` | −40…+6 dB |
+| Middle | `5304` | `5408` | −40…+6 dB |
+| Treble | `5306` | `540A` | −40…+6 dB |
+| Balance | `5308` | `540C` | −16…+16 |
+| Volume (optional) | `50D4` | `5404` or keys 15/16 | 0…254 |
 
-DGUS: Variable type = **Int** (signed), auto-upload ON. Min/Max as above.
+In DGUS: Int (signed), auto-upload ON, Min/Max as in the table.
 
-Open: key **`0008`** (`OPEN_AUDIO`) — firmware sets mode `AUDIO` and page 5 (not a bare `page()` without `_mode`). Back: **`0006`** / **`0004`**.
+Open: key `0008`. Back: `0006` or `0004`.
 
-## Telnet (not the web UI)
+## Telnet is not the web UI
 
-Web «Telnet server» toggles the **port 23 CLI**, not HTTP. Web UI keeps working either way.
+The “Telnet server” flag in the web settings enables a **CLI on port 23**, not the HTTP site. `/settings.html` works independently.
 
-Optional checkbox on Settings hub / Info:
+On the hub or About page you can add:
 
-| Widget | VP | Direction |
-|---|---:|---|
-| State (Variable Icon 0/1) | `5320` | ESP → DWIN |
-| Dual State Button | `5416` | DWIN → ESP (`0`/`1`) |
-| or toggle key | `5400` key **`001A`** (26) | TOGGLE_TELNET |
+| Widget | VP |
+|---|---:|
+| State icon 0/1 | `5320` |
+| Toggle | `5416` (writes 0/1) |
+| or button | `5400` key `001A` (26) |
 
-Label on screen: «Telnet CLI», not «Web».
+Label it “Telnet CLI”, not “Web”.
 
 ## Page 6 — Time
 
-| Показ | VP | Ввод |
+| Display | VP | Input |
 |---|---:|---|
-| TZ hour | `530A` | `5410` (±) |
-| TZ minute | `530C` | `5412` (±) |
-| Часы / дата (read-only) | `5080` / `5090` | — |
+| TZ hours | `530A` | `5410` |
+| TZ minutes | `530C` | `5412` |
+| Clock / date (read-only) | `5080` / `5090` | — |
 
-Назад: `0006` / `0004`.
+Back: `0006` / `0004`.
 
-## Page 4 — Wi‑Fi (статус)
+## Page 4 — Wi‑Fi
 
-Без экранной клавиатуры в первой версии:
+No on-screen keyboard in the first version:
 
-- Text: SSID `5500`, опционально IP на `50B0`
+- SSID `5500`, IP on `50B0`
 - RSSI `50A0`
-- Подпись: смена сети — через веб `/settings.html`
+- Change network via web `/settings.html`
 
-Назад: `0006` / `0004`.
+## Page 7 — About
 
-## Page 7 — Info (read-only)
-
-Прошивка пишет все поля ниже — в DGUS положите Text Display / Data Variable:
-
-| Показ | VP | Пример |
+| Field | VP | Example |
 |---|---:|---|
-| Версия | `5660` | `0.9.720` |
+| Version | `5660` | `0.9.720` |
 | IP | `50B0` | `192.168.1.10` |
-| SSID | `56A0` | имя сети |
+| SSID | `56A0` | network name |
 | RSSI | `50A0` | `-67 dBm` |
 | Bitrate | `50C0` | `320` |
-| Формат | `50E0` | `AAC` |
-| Режим | `5640` | `WEB` / `SD` |
-| № станции | `50D8` | word |
-| Часы / дата / день | `5080` / `5090` / `50F0` | `HH:MM:SS` / `DD.MM.YYYY` / `понедельник` |
+| Format | `50E0` | `AAC` |
+| Mode | `5640` | `WEB` / `SD` |
+| Station # | `50D8` | number |
+| Clock / date / weekday | `5080` / `5090` / `50F0` | |
 
-## Команды (напоминание)
+## Commands (short)
 
-| Key | Command |
+| Key | Action |
 |---:|---|
-| 4 | OPEN_PLAYER |
-| 5 | OPEN_PLAYLIST |
-| 6 | OPEN_SETTINGS |
-| 7 | OPEN_WIFI |
-| 8 | OPEN_AUDIO |
-| 9 | OPEN_TIME |
-| 10 | OPEN_INFO |
-| 11 | SCREEN_OFF |
-| 27 | OPEN_ALARMS |
+| 4 | Player |
+| 5 | Playlist |
+| 6 | Settings |
+| 7 | Wi‑Fi |
+| 8 | Audio |
+| 9 | Time |
+| 10 | About |
+| 11 | Screen off |
+| 27 | Alarms |
 
-Alarms: [ALARMS_PAGE.md](ALARMS_PAGE.md) (3 slots, weekdays, visible conflict, 10 min snooze).
+Alarms details: [ALARMS_PAGE.md](ALARMS_PAGE.md).
 
-## HMI build order
+## Build order
 
-1. Page 3 hub (buttons above).
-2. Page 5 Audio.
-3. Page 6 Time.
-4. Page 10 / 11 Alarms.
-5. Page 4 / 7 as needed.
-6. Generate → SD → flash panel.
+1. Page 3 (hub).
+2. Page 5 (audio).
+3. Page 6 (time).
+4. Pages 10 / 11 (alarms).
+5. Pages 4 / 7 as needed.
+6. Generate → microSD → flash the panel.

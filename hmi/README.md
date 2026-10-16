@@ -1,21 +1,25 @@
-# HMI project for DGUS Tool
+# HMI for DGUS Tool
 
 **English** · [Русский](README.ru.md)
 
-This folder is for the DGUS Tool project for `DMG10600C070_03WTC` at 1024x600. It contains no finished graphics: create the pages, fonts, images and controls in DGUS Tool.
+Folder for the DGUS Tool project for `DMG10600C070_03WTC` (1024×600). There is no finished artwork in the repo — build pages, fonts and images in the Tool.
 
-Documentation:
+## Documents
 
-- [DWIN_SCREEN_MAP.md](DWIN_SCREEN_MAP.md) ([RU](DWIN_SCREEN_MAP.ru.md)) — full VP contract, wiring, serial diagnostic checklist
-- [MINIMAL_PLAYER.md](MINIMAL_PLAYER.md) ([RU](MINIMAL_PLAYER.ru.md)) — step-by-step first Player screen
-- [PLAYLIST_PAGE.md](PLAYLIST_PAGE.md) ([RU](PLAYLIST_PAGE.ru.md)) — playlist page
-- [WEATHER.md](WEATHER.md) ([RU](WEATHER.ru.md)) — OpenWeatherMap → DWIN
-- [SETTINGS_PAGE.md](SETTINGS_PAGE.md) ([RU](SETTINGS_PAGE.ru.md)) — settings hub (no ESP brightness)
-- [ALARMS_PAGE.md](ALARMS_PAGE.md) ([RU](ALARMS_PAGE.ru.md)) — 3 alarms, days, conflict, snooze
-- [FONT_GUIDE.md](FONT_GUIDE.md) ([RU](FONT_GUIDE.ru.md)) — classic ASCII `.bin` fonts (not DGUS_2)
+| Doc | About |
+|---|---|
+| [DWIN_SCREEN_MAP.md](DWIN_SCREEN_MAP.md) | Pages, VPs, wiring, common mistakes |
+| [MINIMAL_PLAYER.md](MINIMAL_PLAYER.md) | First Player screen |
+| [PLAYLIST_PAGE.md](PLAYLIST_PAGE.md) | Playlist |
+| [WEATHER.md](WEATHER.md) | OpenWeatherMap |
+| [SETTINGS_PAGE.md](SETTINGS_PAGE.md) | Settings hub and related screens |
+| [ALARMS_PAGE.md](ALARMS_PAGE.md) | Alarms |
+| [FONT_GUIDE.md](FONT_GUIDE.md) | `.bin` fonts for text |
 
-All yoRadio application VPs begin at `0x5000`. Do not use former `0x2000`/`0x3000` addresses or pulseoximeter addresses from `src/` (`0x6800`, …) in a new yoRadio HMI. The only lower addresses used by firmware are the fixed DGUS system registers: `0x0082` for brightness and `0x0084` for page switching.
+## Addresses
 
-App pages: 1 Player … 7 Info, **10/11 alarms**, 8 screensaver, 9 dialog (firmware does not open 9 for VOL/LOST).
+Application variables start at `0x5000`. Panel system registers: `0x0082` (brightness), `0x0084` (page).
 
-Place source images in `assets/`, fonts in `fonts/`, and the generated DWIN package in `DWIN_SET/`. Copy the generated `DWIN_SET` contents to a FAT32 microSD card, power the display off, insert the card, then power it on. Wait for the DWIN update to finish before removing the card.
+Pages: 1 Player … 7 About, 10–11 alarms, 8 screensaver.
+
+Put images in `assets/`, fonts in `fonts/`, the generated package in `DWIN_SET/`. Copy `DWIN_SET` to a FAT32 microSD, power the display off, insert the card, power on and wait for the update to finish.

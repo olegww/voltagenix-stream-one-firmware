@@ -48,7 +48,7 @@
 |---|---|
 | **0# word bank generating** | Да — для классического ASCII bank |
 | Gray Word Library Generator | Нет — для gray/AA текста |
-| ascii font tool (только 16/256 bit) | Нет — даёт `DGUS_2`, у вас кракозябры |
+| ascii font tool (16/256 bit only) | No — produces `DGUS_2`, on-screen text will be garbled |
 | unicode font | Нет — нужен режим UNICODE в виджете и другая прошивка |
 
 ### 2) Генерация
@@ -98,7 +98,7 @@ ID шрифтов: **0…47**. Одна ячейка Flash = **256 KB**.
 
 - Латиница (`progressive`, `SECTOR`) читается.
 - В Serial при смене станции: `[DWIN] scroll widget=0x5000 data=0x5003 ...`
-- Если снова кракозябры — снова откройте `.bin` в HEX: не должен быть `DGUS_2`.
+- If text is still garbled — open the `.bin` in a hex viewer: it must not start with `DGUS_2`.
 
 ---
 

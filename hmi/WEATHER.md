@@ -1,57 +1,57 @@
-# Погода на DWIN (OpenWeatherMap)
+# Weather (OpenWeatherMap)
 
-Web: **`/settings.html` → Weather** — show weather, lat/lon, API key → Apply.
+**English** · [Русский](WEATHER.ru.md)
 
-Firmware: **HTTPS** to OWM, fixed response buffer (no VLA). API key is **not** sent over WebSocket (`GETWEATHER` → `wkey:""`, `whasset:0/1`). An empty key field on save does **not** clear a stored key.
+Configure in the web UI: **`/settings.html` → Weather** — enable weather, lat/lon, API key → Apply.
 
-## Variable Icon — условие (VP `5310`)
+The firmware talks to OpenWeatherMap over **HTTPS**. The API key is **not shown** when settings are loaded in the browser: if a key is already stored, the field stays empty and a separate flag means “key is set”. Saving an empty key field does **not** erase the stored key.
 
-| Поле DGUS | Значение |
+## Weather icon (VP `5310`)
+
+| DGUS field | Value |
 |---|---|
-| VP | **`5310`** |
-| Icon file | твой `*_weather.icl` |
-| **Minimum** | **0** → Icon ID **0** |
-| **Maximum** | **9** → Icon ID **9** |
+| VP | `5310` |
+| Icon file | your `*_weather.icl` |
+| Minimum | 0 → Icon ID 0 |
+| Maximum | 9 → Icon ID 9 |
 
-Если **Maximum = 0**, иконка не переключается — всегда пусто/только 0.
+If Maximum = 0, the icon never changes.
 
-| Icon ID | OWM | Смысл |
+| Icon ID | OWM code | Meaning |
 |---:|---|---|
-| 0 | `01` | ясно |
-| 1 | `02` | малооблачно |
-| 2 | `03` | облачно |
-| 3 | `04` | пасмурно |
-| 4 | `09` | ливень |
-| 5 | `10` | дождь |
-| 6 | `11` | гроза |
-| 7 | `13` | снег |
-| 8 | `50` | туман |
-| 9 | — | нет данных |
+| 0 | `01` | clear |
+| 1 | `02` | few clouds |
+| 2 | `03` | clouds |
+| 3 | `04` | overcast |
+| 4 | `09` | shower |
+| 5 | `10` | rain |
+| 6 | `11` | thunderstorm |
+| 7 | `13` | snow |
+| 8 | `50` | mist |
+| 9 | — | no data |
 
-## Числа (Data Variable Int, Decimal digits = **0**)
+## Numbers
 
-Прошивка пишет **целые** значения (без ×10):
+Type: Data Variable Int, Decimal digits = **0**. Firmware writes integers (no ×10 scaling).
 
-| VP | Смысл | Пример |
+| VP | Meaning | Example |
 |---:|---|---|
-| `5312` | температура °C | `12` |
-| `5314` | ощущается °C | `12` |
-| `5316` | давление **мм рт. ст.** | `741` |
-| `5318` | влажность % | `79` |
-| `531A` | ветер **м/с** | `5` |
-| `531C` | давление **гПа** (как на сайте OWM) | `1008` |
+| `5312` | temperature °C | `12` |
+| `5314` | feels-like °C | `12` |
+| `5316` | pressure mmHg | `741` |
+| `5318` | humidity % | `79` |
+| `531A` | wind m/s | `5` |
+| `531C` | pressure hPa (as on the OWM site) | `1008` |
 
-Раньше t/ветер шли как ×10 → при Integer digits=2 получалось `122`→`22`, `50` вместо `5.0`.
+Use `531C` (hPa) to compare with the OpenWeatherMap website; `5316` is mmHg.
 
-`5316` в мм рт. ст.; сайт показывает гПа — для сравнения с сайтом используй **`531C`**.
-
-## Описание
+## Description
 
 | VP | Text Length | Coding |
 |---:|---:|---|
 | `5620` | 48 | 8bit |
 
-## Serial
+## Serial check
 
 ```
 ##WEATHER###: ..., temp:12.3 C, pressure:741mmHg (988hPa), ..., wind:5.0 m/s, icon=5

@@ -25,7 +25,7 @@ Fork of [yoRadio](https://github.com/e2002/yoradio) for **Voltagenix Stream One*
 | Аудио | PCM5102 (I2S) |
 | ПО | yoRadio + `DSP_CUSTOM` / DWIN VP `0x5000+` |
 
-В логе загрузки `display: 101` — драйвер DWIN. Значение `0` (headless) для этой сборки неверно.
+В логе загрузки `display: 101` — работает драйвер DWIN.
 
 ### Возможности этой ветки
 
@@ -110,22 +110,20 @@ VP приложения: от `0x5000`. Системные DGUS: `0x0082` (яр�
 
 Отладка кнопок: `DWIN_DEBUG 1` в `myoptions.h`, Serial 115200 — см. чеклист в [DWIN_SCREEN_MAP.ru.md](hmi/DWIN_SCREEN_MAP.ru.md).
 
-### Отличия от upstream yoRadio
+### Чем отличается от обычного yoRadio
 
-- Добавлен стек DWIN (`yoRadio/src/displays/dwin/`)
-- Целевая конфигурация — ESP32-S3 + DWIN + PCM5102
-- Будильники: 3 слота, дни недели, SPIFFS, snooze/dismiss ([ALARMS_PAGE.ru.md](hmi/ALARMS_PAGE.ru.md))
-- `DSP_CUSTOM` = DWIN UART (без `displayCustom.h` / TFT widgets)
-- OWM: HTTPS, ключ не в WebSocket; VOL/LOST не уходят на page 9
-- `PLAY_STATE` только по факту `PSTART`/`PSTOP`; `OPEN_AUDIO` выставляет mode `AUDIO`
-- Wi‑Fi lost/reconnect обрабатываются в `network.loop()` (без `delay` в callback)
+- Дисплей DWIN по UART вместо встроенного TFT/OLED
+- Железо: ESP32-S3 + DWIN + PCM5102
+- Будильники на экране (3 шт., дни недели, отложить / выключить) — [ALARMS_PAGE.ru.md](hmi/ALARMS_PAGE.ru.md)
+- Погода по HTTPS; API-ключ не отдаётся в браузер при чтении настроек
+- При потере Wi‑Fi и при громкости экран остаётся на Player
+- Иконка Play обновляется после реального старта/стопа
 - Документация HMI и проверенная схема подключения
-- Upstream-фичи (MQTT, HA, множество TFT) в дереве могут оставаться, но рабочий путь этой сборки — DWIN
 
 ### Благодарности и лицензия
 
 Основано на **[ёRadio / yoRadio](https://github.com/e2002/yoradio)** (e2002) и библиотеке ESP32-audioI2S.  
-Лицензия: см. [LICENSE](LICENSE). Описание оригинала на 4PDA и Wiki upstream остаются полезны для веб-UI, плейлиста и общих настроек.
+Лицензия: см. [LICENSE](LICENSE). Материалы оригинала (4PDA, Wiki) полезны для веб-UI и плейлиста.
 
 ---
 
@@ -142,9 +140,9 @@ A yoRadio-based internet/SD radio with a dedicated **DWIN (DGUS II)** display dr
 | Audio | PCM5102 (I2S) |
 | Software | yoRadio + `DSP_CUSTOM` / DWIN VPs from `0x5000` |
 
-Boot log `display: 101` means the DWIN driver. `display: 0` (headless) is not the correct mode for this build.
+Boot log `display: 101` means the DWIN driver is active.
 
-### Features in this fork
+### Features in this build
 
 - Player: play/stop, prev/next, volume (buttons + slider), station/title scroll, clock `HH:MM:SS`, date, weekday, IP, stream format (AAC/MP3/…), bitrate, RSSI, VU
 - On-display playlist (paging, row select)
@@ -227,19 +225,17 @@ App VPs start at `0x5000`. DGUS system regs: `0x0082` (brightness), `0x0084` (pa
 
 Button debug: `DWIN_DEBUG 1` in `myoptions.h`, Serial 115200 — checklist in `DWIN_SCREEN_MAP.md`.
 
-### Differences from upstream yoRadio
+### Differences from stock yoRadio
 
-- DWIN stack under `yoRadio/src/displays/dwin/`
-- Target path: ESP32-S3 + DWIN + PCM5102
-- Alarms: 3 slots, SPIFFS, snooze/dismiss ([ALARMS_PAGE.md](hmi/ALARMS_PAGE.md))
-- `DSP_CUSTOM` = DWIN UART (no `displayCustom.h` / TFT widgets)
-- OWM over HTTPS; key not in WebSocket; `VOL`/`LOST` do not open page 9
-- `PLAY_STATE` follows real `PSTART`/`PSTOP`; `OPEN_AUDIO` sets mode `AUDIO`
-- Wi‑Fi lost/reconnect work deferred to `network.loop()` (no `delay` in callbacks)
+- DWIN display over UART instead of onboard TFT/OLED
+- Hardware path: ESP32-S3 + DWIN + PCM5102
+- On-screen alarms (3 slots, weekdays, snooze / dismiss) — [ALARMS_PAGE.md](hmi/ALARMS_PAGE.md)
+- Weather over HTTPS; API key is not sent to the browser when loading settings
+- On Wi‑Fi loss and volume adjust the UI stays on Player
+- Play icon updates after a real start/stop
 - HMI docs and a proven wiring table
-- Upstream extras (MQTT, HA, many TFTs) may still exist in-tree; this product path is DWIN
 
 ### Credits and license
 
 Based on **[ёRadio / yoRadio](https://github.com/e2002/yoradio)** by e2002 and ESP32-audioI2S.  
-See [LICENSE](LICENSE). Upstream Wiki / 4PDA docs remain useful for the web UI, playlists, and shared settings.
+See [LICENSE](LICENSE). Original Wiki / 4PDA docs remain useful for the web UI and playlists.

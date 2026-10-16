@@ -1,25 +1,25 @@
-# Проект HMI для DGUS Tool
+# HMI для DGUS Tool
 
 [English](README.md) · **Русский**
 
-Папка под проект DGUS Tool для дисплея `DMG10600C070_03WTC` (1024×600). Готовой графики в репозитории нет: страницы, шрифты, картинки и виджеты создаются в DGUS Tool.
+Папка для проекта DGUS Tool под дисплей `DMG10600C070_03WTC` (1024×600). Готовой графики в репозитории нет: страницы, шрифты и картинки собираются в Tool.
 
-## Документация (RU)
+## Документы
 
-| Документ | Содержание |
+| Документ | О чём |
 |---|---|
-| [DWIN_SCREEN_MAP.ru.md](DWIN_SCREEN_MAP.ru.md) | контракт VP, wiring, Serial-чеклист |
-| [MINIMAL_PLAYER.ru.md](MINIMAL_PLAYER.ru.md) | первый экран Player (play/prev/next/громкость) |
-| [PLAYLIST_PAGE.ru.md](PLAYLIST_PAGE.ru.md) | экран плейлиста |
-| [WEATHER.ru.md](WEATHER.ru.md) | OpenWeatherMap → DWIN |
-| [SETTINGS_PAGE.ru.md](SETTINGS_PAGE.ru.md) | хаб настроек (без яркости через ESP) |
-| [ALARMS_PAGE.ru.md](ALARMS_PAGE.ru.md) | 3 будильника, дни, конфликт, snooze |
-| [FONT_GUIDE.ru.md](FONT_GUIDE.ru.md) | классические ASCII `.bin` шрифты (не DGUS_2) |
+| [DWIN_SCREEN_MAP.ru.md](DWIN_SCREEN_MAP.ru.md) | Страницы, VP, подключение, типичные ошибки |
+| [MINIMAL_PLAYER.ru.md](MINIMAL_PLAYER.ru.md) | Первый экран Player |
+| [PLAYLIST_PAGE.ru.md](PLAYLIST_PAGE.ru.md) | Плейлист |
+| [WEATHER.ru.md](WEATHER.ru.md) | Погода OpenWeatherMap |
+| [SETTINGS_PAGE.ru.md](SETTINGS_PAGE.ru.md) | Хаб настроек и связанные экраны |
+| [ALARMS_PAGE.ru.md](ALARMS_PAGE.ru.md) | Будильники |
+| [FONT_GUIDE.ru.md](FONT_GUIDE.ru.md) | Шрифты `.bin` для текста |
 
-## Правила адресов
+## Адреса
 
-Все прикладные VP yoRadio начинаются с `0x5000`. Не используйте адреса пульсоксиметра из `src/` (`0x6800` и т.п.). Системные регистры DGUS: `0x0082` (яркость), `0x0084` (смена страницы).
+Переменные приложения — от `0x5000`. Системные регистры панели: `0x0082` (яркость), `0x0084` (страница).
 
-Страницы приложения: 1 Player … 7 Info, **10/11 будильники**, 8 заставка, 9 диалог (прошивка не открывает 9 на VOL/LOST).
+Страницы: 1 Player … 7 О системе, 10–11 будильники, 8 заставка.
 
-Исходники картинок — в `assets/`, шрифты — в `fonts/`, собранный пакет — в `DWIN_SET/`. Содержимое `DWIN_SET` копируйте на FAT32 microSD, дисплей выключите, вставьте карту, включите и дождитесь окончания обновления.
+Картинки — в `assets/`, шрифты — в `fonts/`, готовый пакет — в `DWIN_SET/`. Скопируйте `DWIN_SET` на FAT32 microSD, выключите дисплей, вставьте карту, включите и дождитесь обновления.
