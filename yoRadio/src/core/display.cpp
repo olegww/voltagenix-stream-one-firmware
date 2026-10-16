@@ -11,6 +11,7 @@
 #endif
 
 static void dwinTask(void *) {
+  // Owner task for DwinDisplay request queue (putRequest from other cores enqueues here).
   for (;;) {
     dwin.loop();
     timekeeper.loop0();

@@ -69,8 +69,12 @@
   #include "displayGC9106.h"
 
 #elif DSP_MODEL==DSP_CUSTOM
+  // Voltagenix Stream One: UI is DWIN/DGUS over UART — no TFT/OLED DspCore.
+  // Do NOT #include "displayCustom.h" (upstream yoRadio custom-TFT path).
+  // Widgets/utf8Rus are excluded in platformio.ini build_src_filter.
   #define TIME_SIZE           0
-  #include "displayCustom.h"
+  #define DUMMYDISPLAY
+  #define DSP_NOT_FLIPPED
 
 #elif DSP_MODEL==DSP_ILI9225         // https://k210.org/images/content/uploads/yoradio/ILI9225.jpg
   #define TIME_SIZE           35

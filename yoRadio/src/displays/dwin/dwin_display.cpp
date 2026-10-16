@@ -6,6 +6,22 @@
 #include "../../core/player.h"
 #include "../../core/timekeeper.h"
 #include "../../core/display.h"
+#include "../../core/telnet.h"
+#include "../../core/alarms.h"
+#include "../tools/l10n.h"
+#include <WiFi.h>
+
+/** Human-readable codec label for DWIN Text Display. */
+static const char *dwinFormatLabel(BitrateFormat fmt) {
+  switch (fmt) {
+    case BF_MP3:  return "MP3";
+    case BF_AAC:  return "AAC";
+    case BF_FLAC: return "FLC";
+    case BF_OGG:  return "OGG";
+    case BF_WAV:  return "WAV";
+    default:      return "-";
+  }
+}
 
 DwinDisplay dwin;
 
@@ -96,22 +112,24 @@ void DwinDisplay::writeTextFixed(uint16_t vp, const char *text, uint8_t width) {
 
 void DwinDisplay::writeScrollText(uint16_t widgetVp, const char *text) {
   // Same as src/audio_player.cpp scroll(): widget VP 0x67B4, data written to 0x67B7.
+  constexpr uint8_t kScrollLen = dwin_vp::SCROLL_TEXT_LEN;
   uint16_t dataVp = (uint16_t)(widgetVp + 3);
-  uint8_t raw[33];
+  uint8_t raw[kScrollLen + 1];
   size_t n = utf8ToCp1251(text ? text : "", raw, sizeof(raw));
+  if (n > kScrollLen) n = kScrollLen;
 
   // Clear previous scroll content (zeros), then write new string once.
-  uint8_t clr[40];
+  uint8_t clr[kPacketMax];
   memset(clr, 0, sizeof(clr));
   clr[0] = 0x5A;
   clr[1] = 0xA5;
-  clr[2] = (uint8_t)(3 + 32);
+  clr[2] = (uint8_t)(3 + kScrollLen);
   clr[3] = 0x82;
   clr[4] = (uint8_t)(dataVp >> 8);
   clr[5] = (uint8_t)dataVp;
-  enqueue(clr, (uint8_t)(6 + 32));
+  enqueue(clr, (uint8_t)(6 + kScrollLen));
 
-  uint8_t p[40];
+  uint8_t p[kPacketMax];
   memset(p, 0, sizeof(p));
   p[0] = 0x5A;
   p[1] = 0xA5;
@@ -166,7 +184,7 @@ bool DwinDisplay::tryLink(int rxPin, int txPin, uint32_t baud) {
   return got > 0;
 }
 
-void DwinDisplay::probeLink() {
+bool DwinDisplay::probeLink() {
   struct Attempt {
     int rx;
     int tx;
@@ -188,15 +206,15 @@ void DwinDisplay::probeLink() {
       _rxPin = a.rx;
       _txPin = a.tx;
       _baud = a.baud;
-#if DWIN_DEBUG
       Serial.printf("[DWIN] LINK OK: RX=GPIO%d TX=GPIO%d baud=%u\n", _rxPin, _txPin, _baud);
-      Serial.println("[DWIN] Put these values into yoRadio/myoptions.h and rebuild");
+#if DWIN_DEBUG
+      Serial.println("[DWIN] Put these values into yoRadio/myoptions.h if different from config");
 #endif
-      return;
+      return true;
     }
   }
 
-  // Fall back to configured pins so the rest of firmware still runs.
+  // Keep configured UART open for later retry; do not claim ready.
   _rxPin = DWIN_RX;
   _txPin = DWIN_TX;
   _baud = DWIN_BAUD;
@@ -205,8 +223,8 @@ void DwinDisplay::probeLink() {
   _serial.begin(_baud, SERIAL_8N1, _rxPin, _txPin);
   delay(50);
 
+  Serial.println("[DWIN] LINK FAIL: no reply — will retry");
 #if DWIN_DEBUG
-  Serial.println("[DWIN] LINK FAIL: no reply on any pin/baud combo");
   Serial.println("[DWIN] Hardware checklist:");
   Serial.println("[DWIN]  1) Common GND between ESP32-S3 and DWIN");
   Serial.println("[DWIN]  2) UART2 jumper on display = ON (TTL/CMOS), NOT RS232");
@@ -214,24 +232,50 @@ void DwinDisplay::probeLink() {
   Serial.println("[DWIN]  4) DWIN TX -> ESP RX, DWIN RX -> ESP TX");
   Serial.println("[DWIN]  5) If screen brightness/page did NOT change on boot, TX wire is wrong");
 #endif
+  return false;
+}
+
+void DwinDisplay::retryLinkIfNeeded() {
+  if (_ready) return;
+  uint32_t now = millis();
+  if (_lastProbeMs != 0 && (now - _lastProbeMs) < 2000) return;
+  _lastProbeMs = now;
+  if (probeLink()) {
+    _ready = true;
+    page(dwin_vp::PLAYER);
+    setBrightness();
+    Serial.println("[DWIN] LINK OK after retry — display ready");
+  }
 }
 
 void DwinDisplay::begin() {
-  _ready = true;
+  if (_reqQueue == nullptr) {
+    _reqQueue = xQueueCreate(kReqQueueDepth, sizeof(requestParams_t));
+  }
+  // Ready only after a successful probe (see retryLinkIfNeeded in loop).
+  _ready = false;
+  _lastProbeMs = 0;
 #if DWIN_DEBUG
   Serial.printf("[DWIN] probing link (cfg RX=GPIO%d TX=GPIO%d baud=%u)\n",
                 DWIN_RX, DWIN_TX, DWIN_BAUD);
   Serial.println("[DWIN] Play button: VP 0x5400 key 1 (Data auto-upload ON)");
 #endif
 
-  probeLink();
+  if (probeLink()) {
+    _ready = true;
+    _lastProbeMs = millis();
+    page(dwin_vp::PLAYER);
+    setBrightness();
+  } else {
+    _lastProbeMs = millis();
+  }
 
 #if DWIN_DEBUG
-  Serial.printf("[DWIN] UART active: RX=GPIO%d TX=GPIO%d baud=%u\n", _rxPin, _txPin, _baud);
+  Serial.printf("[DWIN] UART active: RX=GPIO%d TX=GPIO%d baud=%u ready=%u\n",
+                _rxPin, _txPin, _baud, (unsigned)_ready);
 #endif
-
-  page(dwin_vp::PLAYER);
-  setBrightness();
+  Serial.printf("[DWIN] TX queue depth=%u flush/loop≤%u req queue=%u\n",
+                (unsigned)kTxDepth, (unsigned)kTxFlushMax, (unsigned)kReqQueueDepth);
 }
 
 bool DwinDisplay::enqueue(const uint8_t *data, uint8_t len) {
@@ -239,7 +283,13 @@ bool DwinDisplay::enqueue(const uint8_t *data, uint8_t len) {
   portENTER_CRITICAL(&_txMux);
   uint8_t next = (_txHead + 1) % kTxDepth;
   if (next == _txTail) {
+    _txOverflow++;
+    uint32_t n = _txOverflow;
     portEXIT_CRITICAL(&_txMux);
+    // Rare log — avoid Serial flood when UI is under load.
+    if ((n & 0x3F) == 1) {
+      Serial.printf("[DWIN] TX overflow x%lu (depth=%u)\n", (unsigned long)n, (unsigned)kTxDepth);
+    }
     return false;
   }
   memcpy(_tx[_txHead].data, data, len);
@@ -252,20 +302,22 @@ bool DwinDisplay::enqueue(const uint8_t *data, uint8_t len) {
 void DwinDisplay::flushTx() {
   if (_locked) return;
 
-  Packet p;
-  portENTER_CRITICAL(&_txMux);
-  if (_txHead == _txTail) {
+  for (uint8_t i = 0; i < kTxFlushMax; i++) {
+    Packet p;
+    portENTER_CRITICAL(&_txMux);
+    if (_txHead == _txTail) {
+      portEXIT_CRITICAL(&_txMux);
+      return;
+    }
+    p = _tx[_txTail];
+    if (_serial.availableForWrite() < (int)p.len) {
+      portEXIT_CRITICAL(&_txMux);
+      return;
+    }
+    _txTail = (_txTail + 1) % kTxDepth;
     portEXIT_CRITICAL(&_txMux);
-    return;
+    _serial.write(p.data, p.len);
   }
-  p = _tx[_txTail];
-  if (_serial.availableForWrite() < p.len) {
-    portEXIT_CRITICAL(&_txMux);
-    return;
-  }
-  _txTail = (_txTail + 1) % kTxDepth;
-  portEXIT_CRITICAL(&_txMux);
-  _serial.write(p.data, p.len);
 }
 
 void DwinDisplay::writeWord(uint16_t vp, uint16_t value) {
@@ -338,11 +390,46 @@ void DwinDisplay::setMode(displayMode_e value) {
     case WIFI: page(dwin_vp::WIFI); break;
     case TIMEZONE: page(dwin_vp::TIME); break;
     case INFO: page(dwin_vp::INFO); break;
+    case ALARMS:
+      page(dwin_vp::ALARMS);
+      pushAlarms();
+      break;
+    case ALARMEDIT:
+      page(dwin_vp::ALARM_EDIT);
+      pushAlarmEditor();
+      break;
+    case AUDIO:
+      page(dwin_vp::AUDIO);
+      pushEq();
+      writeWord(dwin_vp::VOLUME, config.store.volume);
+      break;
     case SCREENSAVER:
     case SCREENBLANK: page(dwin_vp::SCREENSAVER); break;
-    default: page(dwin_vp::DIALOG); break;
+    case VOL:
+      // Volume lives on Player (VP 0x50D4) — do not leave the current page.
+      writeWord(dwin_vp::VOLUME, config.store.volume);
+      break;
+    case LOST:
+      // Keep Player; show reconnect hint (no dedicated Lost page in HMI yet).
+      page(dwin_vp::PLAYER);
+      writeScrollText(dwin_vp::STATION, "Нет Wi-Fi");
+      writeTextFixed(dwin_vp::TITLE_STATIC, "Переподключение…", dwin_vp::TITLE_STATIC_LEN);
+      writeTextFixed(dwin_vp::NETWORK, "reconnect", dwin_vp::NETWORK_LEN);
+      strlcpy(_lastStation, "Нет Wi-Fi", sizeof(_lastStation));
+      strlcpy(_lastTitle, "Переподключение…", sizeof(_lastTitle));
+      strlcpy(_lastIp, "reconnect", sizeof(_lastIp));
+      break;
+    case CLEAR:
+    case NUMBERS:
+    case UPDATING:
+    case SLEEPING:
+    case SDCHANGE:
+      // Internal / transient modes — do not jump to empty DIALOG page 9.
+      break;
+    default:
+      break;
   }
-  refreshStatus();
+  if (value != LOST) refreshStatus();
 }
 
 uint16_t DwinDisplay::playlistWindowBase() const {
@@ -431,6 +518,106 @@ void DwinDisplay::pushTitle() {
   writeTextFixed(dwin_vp::TITLE_STATIC, config.station.title, dwin_vp::TITLE_STATIC_LEN);
 }
 
+int8_t DwinDisplay::clampTone(int16_t v) {
+  if (v < dwin_vp::EQ_TONE_MIN) return dwin_vp::EQ_TONE_MIN;
+  if (v > dwin_vp::EQ_TONE_MAX) return dwin_vp::EQ_TONE_MAX;
+  return (int8_t)v;
+}
+
+int8_t DwinDisplay::clampBalance(int16_t v) {
+  if (v < dwin_vp::EQ_BALANCE_MIN) return dwin_vp::EQ_BALANCE_MIN;
+  if (v > dwin_vp::EQ_BALANCE_MAX) return dwin_vp::EQ_BALANCE_MAX;
+  return (int8_t)v;
+}
+
+void DwinDisplay::pushEq() {
+  writeWord(dwin_vp::BASS, (uint16_t)(int16_t)config.store.bass);
+  writeWord(dwin_vp::MIDDLE, (uint16_t)(int16_t)config.store.middle);
+  writeWord(dwin_vp::TREBLE, (uint16_t)(int16_t)config.store.trebble);
+  writeWord(dwin_vp::BALANCE, (uint16_t)(int16_t)config.store.balance);
+}
+
+void DwinDisplay::pushTelnet() {
+  writeWord(dwin_vp::TELNET_STATE, config.store.telnet ? 1 : 0);
+}
+
+void DwinDisplay::showAlarmError(const char *msg) {
+  writeTextFixed(dwin_vp::ALARM_ERR, msg ? msg : "", dwin_vp::ALARM_ERR_LEN);
+#if DWIN_DEBUG
+  if (msg && msg[0]) Serial.printf("[ALARM] UI: %s\n", msg);
+#endif
+}
+
+void DwinDisplay::openAlarmEditor(uint8_t id) {
+  if (id >= ALARM_COUNT) id = 0;
+  _editAlarm = id;
+  showAlarmError("");
+  setMode(::ALARMEDIT);
+}
+
+void DwinDisplay::pushAlarmEditor() {
+  using namespace dwin_vp;
+  const alarm_t &a = alarms.get(_editAlarm);
+  writeWord(ALARM_EDIT_ID, _editAlarm);
+  writeWord(ALARM_EDIT_ENABLED, a.enabled ? 1 : 0);
+  writeWord(ALARM_EDIT_START, a.startMin);
+  writeWord(ALARM_EDIT_STOP, a.stopMin);
+  writeWord(ALARM_EDIT_STATION, a.station);
+  writeWord(ALARM_EDIT_VOLUME, a.volume);
+  writeWord(ALARM_EDIT_DAYS, a.days);
+  for (uint8_t d = 0; d < 7; d++) {
+    writeWord((uint16_t)(ALARM_DAY_ICON0 + d), (a.days & (1u << d)) ? 1 : 0);
+  }
+}
+
+void DwinDisplay::pushAlarmStatus() {
+  using namespace dwin_vp;
+  char status[40];
+  uint16_t active = 0;
+  uint16_t activeId = 0;
+  status[0] = 0;
+  if (alarms.snoozePending()) {
+    active = 2;
+    int8_t from = alarms.snoozeFromId();
+    activeId = from >= 0 ? (uint16_t)(from + 1) : 0;
+    strlcpy(status, "Отложено 10 мин", sizeof(status));
+  } else if (alarms.sessionActive()) {
+    active = 1;
+    activeId = (uint16_t)(alarms.activeId() + 1);
+    snprintf(status, sizeof(status), "Будильник №%u", (unsigned)activeId);
+  }
+  writeWord(ALARM_ACTIVE, active);
+  writeWord(ALARM_ACTIVE_ID, activeId);
+  if ((int8_t)active != _lastAlarmActive) {
+    _lastAlarmActive = (int8_t)active;
+    writeTextFixed(ALARM_STATUS, status, ALARM_STATUS_LEN);
+  }
+}
+
+void DwinDisplay::pushAlarms() {
+  using namespace dwin_vp;
+  char line[48];
+  char range[16];
+  char days[24];
+  for (uint8_t i = 0; i < ALARM_COUNT; i++) {
+    const alarm_t &a = alarms.get(i);
+    uint16_t base = (uint16_t)(ALARM0 + i * ALARM_STRIDE);
+    writeWord(base + 0x00, a.enabled ? 1 : 0);
+    writeWord(base + 0x02, a.startMin);
+    writeWord(base + 0x04, a.stopMin);
+    writeWord(base + 0x06, a.station);
+    writeWord(base + 0x08, a.volume);
+    writeWord(base + 0x0A, a.days);
+    AlarmManager::formatRange(a.startMin, a.stopMin, range, sizeof(range));
+    AlarmManager::formatDays(a.days, days, sizeof(days));
+    snprintf(line, sizeof(line), "%u %s %s #%u %s",
+             (unsigned)(i + 1), range, days, a.station, a.enabled ? "ON" : "OFF");
+    writeTextFixed((uint16_t)(ALARM_LINE0 + i * 0x40), line, ALARM_LINE_LEN);
+  }
+  if (_mode == ::ALARMEDIT) pushAlarmEditor();
+  pushAlarmStatus();
+}
+
 void DwinDisplay::pushWeather() {
   using namespace dwin_vp;
   if (!config.store.showweather || !timekeeper.weather.valid) {
@@ -463,32 +650,112 @@ void DwinDisplay::pushWeather() {
 }
 
 void DwinDisplay::refreshStatus() {
-  char b[24];
-  strftime(b, sizeof(b), "%H:%M", &network.timeinfo);
-  writeText(dwin_vp::CLOCK, b);
+  char b[40];
+
+  // Clock with seconds (HH:MM:SS) — Text Length ≥ CLOCK_LEN in DGUS.
+  strftime(b, sizeof(b), "%H:%M:%S", &network.timeinfo);
+  if (strncmp(_lastClock, b, sizeof(_lastClock)) != 0) {
+    strlcpy(_lastClock, b, sizeof(_lastClock));
+    writeTextFixed(dwin_vp::CLOCK, b, dwin_vp::CLOCK_LEN);
+  }
+
+  // Date DD.MM.YYYY
   strftime(b, sizeof(b), "%d.%m.%Y", &network.timeinfo);
-  writeText(dwin_vp::DATE, b);
+  if (strncmp(_lastDate, b, sizeof(_lastDate)) != 0) {
+    strlcpy(_lastDate, b, sizeof(_lastDate));
+    writeTextFixed(dwin_vp::DATE, b, dwin_vp::DATE_LEN);
+  }
+
+  // Weekday (full localized name → CP1251), once per day change
+  {
+    int8_t w = (int8_t)network.timeinfo.tm_wday;
+    if (w < 0 || w > 6) w = 0;
+    if (w != _lastWday) {
+      _lastWday = w;
+      char dowBuf[24];
+      strncpy_P(dowBuf, LANG::dowf[(uint8_t)w], sizeof(dowBuf) - 1);
+      dowBuf[sizeof(dowBuf) - 1] = 0;
+      strlcpy(_lastWeekday, dowBuf, sizeof(_lastWeekday));
+      writeTextFixed(dwin_vp::WEEKDAY, dowBuf, dwin_vp::WEEKDAY_LEN);
+    }
+  }
+
+  // IP (STA or SoftAP)
+  {
+    IPAddress ip = (WiFi.getMode() == WIFI_STA) ? WiFi.localIP() : WiFi.softAPIP();
+    const char *ips = config.ipToStr(ip);
+    if (strncmp(_lastIp, ips, sizeof(_lastIp)) != 0) {
+      strlcpy(_lastIp, ips, sizeof(_lastIp));
+      writeTextFixed(dwin_vp::NETWORK, ips, dwin_vp::NETWORK_LEN);
+    }
+  }
+
+  // RSSI / bitrate always (change often); format only on change
   snprintf(b, sizeof(b), "%d dBm", WiFi.RSSI());
   writeText(dwin_vp::RSSI, b);
   snprintf(b, sizeof(b), "%u", config.station.bitrate);
   writeText(dwin_vp::BITRATE, b);
+  {
+    const char *fmt = dwinFormatLabel(config.configFmt);
+    if (strncmp(_lastFormat, fmt, sizeof(_lastFormat)) != 0) {
+      strlcpy(_lastFormat, fmt, sizeof(_lastFormat));
+      writeTextFixed(dwin_vp::FORMAT, fmt, dwin_vp::FORMAT_LEN);
+    }
+  }
+
+  // Station number, play mode, firmware version (once), current SSID
+  {
+    uint16_t sn = config.lastStation();
+    if (sn != _lastStationNum) {
+      _lastStationNum = sn;
+      writeWord(dwin_vp::STATION_NUM, sn);
+    }
+  }
+  {
+    const char *mode = config.getMode() == PM_SDCARD ? "SD" : "WEB";
+    if (strncmp(_lastMode, mode, sizeof(_lastMode)) != 0) {
+      strlcpy(_lastMode, mode, sizeof(_lastMode));
+      writeTextFixed(dwin_vp::MODE_TEXT, mode, dwin_vp::MODE_TEXT_LEN);
+    }
+  }
+  if (!_metaPushed) {
+    writeTextFixed(dwin_vp::VERSION, YOVERSION, dwin_vp::VERSION_LEN);
+    _metaPushed = true;
+  }
+  {
+    String ssid = WiFi.SSID();
+    if (strncmp(_lastSsid, ssid.c_str(), sizeof(_lastSsid)) != 0) {
+      strlcpy(_lastSsid, ssid.c_str(), sizeof(_lastSsid));
+      writeTextFixed(dwin_vp::SSID_STATUS, ssid.c_str(), dwin_vp::SSID_STATUS_LEN);
+    }
+  }
+
   // During slider drag, store.volume lags (setVol is queued) — don't yank the knob back.
   if ((int32_t)(millis() - _sliderGuardUntil) >= 0) {
     writeWord(dwin_vp::VOLUME, config.store.volume);
   }
   syncPlayState();
   writeWord(dwin_vp::BRIGHTNESS, config.store.brightness);
-  writeWord(dwin_vp::BASS, (uint16_t)(int16_t)config.store.bass);
-  writeWord(dwin_vp::MIDDLE, (uint16_t)(int16_t)config.store.middle);
-  writeWord(dwin_vp::TREBLE, (uint16_t)(int16_t)config.store.trebble);
-  writeWord(dwin_vp::BALANCE, (uint16_t)(int16_t)config.store.balance);
+  pushEq();
+  pushTelnet();
   writeWord(dwin_vp::TZ_HOUR, (uint16_t)(int16_t)config.store.tzHour);
   writeWord(dwin_vp::TZ_MINUTE, (uint16_t)(int16_t)config.store.tzMin);
+  pushAlarmStatus();
 }
 
 void DwinDisplay::refresh() {
   _lastStation[0] = 0;
   _lastTitle[0] = 0;
+  _lastClock[0] = 0;
+  _lastDate[0] = 0;
+  _lastWeekday[0] = 0;
+  _lastIp[0] = 0;
+  _lastFormat[0] = 0;
+  _lastMode[0] = 0;
+  _lastSsid[0] = 0;
+  _lastWday = -1;
+  _lastStationNum = 0;
+  _metaPushed = false;
   pushStation();
   pushTitle();
   refreshStatus();
@@ -496,6 +763,31 @@ void DwinDisplay::refresh() {
 }
 
 void DwinDisplay::putRequest(requestParams_t r) {
+  // Before queue exists (very early boot) or when already on DwinTask — handle inline.
+  if (_reqQueue == nullptr ||
+      (_ownerTask != nullptr && xTaskGetCurrentTaskHandle() == _ownerTask)) {
+    handleRequest(r);
+    return;
+  }
+  if (xQueueSend(_reqQueue, &r, 0) != pdTRUE) {
+    _reqOverflow++;
+    if ((_reqOverflow & 0x1F) == 1) {
+      Serial.printf("[DWIN] request queue full x%lu type=%d\n",
+                    (unsigned long)_reqOverflow, (int)r.type);
+    }
+  }
+}
+
+void DwinDisplay::drainRequests() {
+  if (_reqQueue == nullptr) return;
+  requestParams_t r;
+  // Bound work per loop so UART RX/TX stay responsive.
+  for (uint8_t i = 0; i < kReqQueueDepth && xQueueReceive(_reqQueue, &r, 0) == pdTRUE; i++) {
+    handleRequest(r);
+  }
+}
+
+void DwinDisplay::handleRequest(requestParams_t r) {
   if (_locked) return;
   switch (r.type) {
     case DSP_START:
@@ -506,6 +798,8 @@ void DwinDisplay::putRequest(requestParams_t r) {
       break;
     case NEWSTATION:
       pushStation();
+      _lastStationNum = config.lastStation();
+      writeWord(dwin_vp::STATION_NUM, _lastStationNum);
       break;
     case NEWTITLE:
       pushTitle();
@@ -514,6 +808,7 @@ void DwinDisplay::putRequest(requestParams_t r) {
     case DRAWVOL:
     case DBITRATE:
     case DSPRSSI:
+    case NEWIP:
       refreshStatus();
       break;
     case PSTART:
@@ -594,9 +889,7 @@ void DwinDisplay::command(uint16_t c) {
 #if DWIN_DEBUG
       Serial.printf("[DWIN] player.toggle() status=%d\n", player.status());
 #endif
-      uint16_t nextState = player.status() == PLAYING ? 0 : 1;
-      writeWord(dwin_vp::PLAY_STATE, nextState);
-      _lastPlayState = (int8_t)nextState;
+      // Do not paint PLAY_STATE here — wait for PSTART/PSTOP / syncPlayState.
       player.toggle();
       playStateChanged = true;
       break;
@@ -664,12 +957,13 @@ void DwinDisplay::command(uint16_t c) {
       break;
     case OPEN_SETTINGS:
       setMode(::SETTINGS);
+      pushTelnet();
       break;
     case OPEN_WIFI:
       setMode(::WIFI);
       break;
     case OPEN_AUDIO:
-      page(AUDIO);
+      setMode(::AUDIO);
       break;
     case OPEN_TIME:
       setMode(::TIMEZONE);
@@ -677,6 +971,56 @@ void DwinDisplay::command(uint16_t c) {
     case OPEN_INFO:
       setMode(::INFO);
       break;
+    case TOGGLE_TELNET:
+      config.saveValue(&config.store.telnet, !config.store.telnet);
+      telnet.toggle();
+      pushTelnet();
+      break;
+    case OPEN_ALARMS:
+      setMode(::ALARMS);
+      break;
+    case ALARM_EDIT_0:
+    case ALARM_EDIT_1:
+    case ALARM_EDIT_2:
+      openAlarmEditor((uint8_t)(c - ALARM_EDIT_0));
+      break;
+    case ALARM_DAYS_DAILY:
+    case ALARM_DAYS_WEEKDAYS:
+    case ALARM_DAYS_WEEKEND: {
+      char err[32];
+      uint8_t preset = (uint8_t)(c - ALARM_DAYS_DAILY);
+      if (!alarms.setDaysPreset(_editAlarm, preset, err, sizeof(err))) {
+        showAlarmError(err);
+      } else {
+        showAlarmError("");
+      }
+      pushAlarms();
+      break;
+    }
+    case ALARM_SNOOZE:
+      alarms.snooze();
+      pushAlarms();
+      break;
+    case ALARM_DISMISS:
+      alarms.dismiss();
+      pushAlarms();
+      break;
+    case ALARM_TOGGLE_DAY_0:
+    case ALARM_TOGGLE_DAY_1:
+    case ALARM_TOGGLE_DAY_2:
+    case ALARM_TOGGLE_DAY_3:
+    case ALARM_TOGGLE_DAY_4:
+    case ALARM_TOGGLE_DAY_5:
+    case ALARM_TOGGLE_DAY_6: {
+      char err[32];
+      if (!alarms.toggleDay(_editAlarm, (uint8_t)(c - ALARM_TOGGLE_DAY_0), err, sizeof(err))) {
+        showAlarmError(err[0] ? err : "Нельзя выключить все дни");
+      } else {
+        showAlarmError("");
+      }
+      pushAlarms();
+      break;
+    }
     case SCREEN_OFF:
       sleep();
       break;
@@ -738,13 +1082,25 @@ void DwinDisplay::value(uint16_t vp, uint16_t raw) {
     }
     if (vp == SET_VOLUME) writeWord(VOLUME, v);
   } else if (vp == SET_BASS) {
-    config.setTone((int8_t)s, config.store.middle, config.store.trebble);
+    // Live apply + EEPROM — no separate «Confirm» needed.
+    config.setTone(clampTone(s), config.store.middle, config.store.trebble);
+    writeWord(BASS, (uint16_t)(int16_t)config.store.bass);
   } else if (vp == SET_MIDDLE) {
-    config.setTone(config.store.bass, (int8_t)s, config.store.trebble);
+    config.setTone(config.store.bass, clampTone(s), config.store.trebble);
+    writeWord(MIDDLE, (uint16_t)(int16_t)config.store.middle);
   } else if (vp == SET_TREBLE) {
-    config.setTone(config.store.bass, config.store.middle, (int8_t)s);
+    config.setTone(config.store.bass, config.store.middle, clampTone(s));
+    writeWord(TREBLE, (uint16_t)(int16_t)config.store.trebble);
   } else if (vp == SET_BALANCE) {
-    config.setBalance((int8_t)s);
+    config.setBalance(clampBalance(s));
+    writeWord(BALANCE, (uint16_t)(int16_t)config.store.balance);
+  } else if (vp == SET_TELNET) {
+    bool on = raw != 0;
+    if (on != (bool)config.store.telnet) {
+      config.saveValue(&config.store.telnet, on);
+      telnet.toggle();
+    }
+    pushTelnet();
   } else if (vp == SET_BRIGHTNESS) {
     config.store.brightness = (uint8_t)(raw > 100 ? 100 : raw);
     config.setBrightness(true);
@@ -752,6 +1108,48 @@ void DwinDisplay::value(uint16_t vp, uint16_t raw) {
     config.setTimezone((int8_t)s, config.store.tzMin);
   } else if (vp == SET_TZ_MINUTE) {
     config.setTimezone(config.store.tzHour, (int8_t)s);
+  } else if (vp == SELECT_ALARM) {
+    openAlarmEditor((uint8_t)(raw > 2 ? 2 : raw));
+  } else if (vp == SET_ALARM_ENABLED) {
+    char err[32];
+    if (!alarms.setEnabled(_editAlarm, raw != 0, err, sizeof(err))) {
+      showAlarmError(err);
+    } else {
+      showAlarmError("");
+    }
+    pushAlarms();
+  } else if (vp == SET_ALARM_START) {
+    char err[32];
+    if (!alarms.setStart(_editAlarm, AlarmManager::clampMinOfDay((int32_t)raw), err, sizeof(err))) {
+      showAlarmError(err);
+    } else {
+      showAlarmError("");
+    }
+    pushAlarms();
+  } else if (vp == SET_ALARM_STOP) {
+    char err[32];
+    if (!alarms.setStop(_editAlarm, AlarmManager::clampMinOfDay((int32_t)raw), err, sizeof(err))) {
+      showAlarmError(err);
+    } else {
+      showAlarmError("");
+    }
+    pushAlarms();
+  } else if (vp == SET_ALARM_STATION) {
+    alarms.setStation(_editAlarm, raw);
+    showAlarmError("");
+    pushAlarms();
+  } else if (vp == SET_ALARM_VOLUME) {
+    alarms.setVolume(_editAlarm, (uint8_t)(raw > 254 ? 254 : raw));
+    showAlarmError("");
+    pushAlarms();
+  } else if (vp == SET_ALARM_DAYS) {
+    char err[32];
+    if (!alarms.setDays(_editAlarm, (uint8_t)(raw & 0x7F), err, sizeof(err))) {
+      showAlarmError(err);
+    } else {
+      showAlarmError("");
+    }
+    pushAlarms();
   } else {
     handled = false;
 #if DWIN_DEBUG
@@ -844,6 +1242,17 @@ void DwinDisplay::pollRx() {
 }
 
 void DwinDisplay::loop() {
+  if (_ownerTask == nullptr) {
+    _ownerTask = xTaskGetCurrentTaskHandle();
+  }
+
+  // Do not drain UI until the panel answered probe — avoids DSP_START on dead link.
+  if (!_ready) {
+    retryLinkIfNeeded();
+    return;
+  }
+
+  drainRequests();
   pollRx();
   flushTx();
   syncPlayState();
@@ -875,11 +1284,15 @@ void DwinDisplay::loop() {
       }
     }
   }
+  // Drain again after UI work so CLOCK/NEWTITLE from other cores don't stall a tick.
+  drainRequests();
+  flushTx();
 #if DWIN_DEBUG
   if (millis() - lastHint >= 10000) {
     lastHint = millis();
-    Serial.printf("[DWIN] waiting touch on VP 0x5400 (RX GPIO%d). avail=%d play=%d\n",
-                  _rxPin, _serial.available(), _lastPlayState);
+    Serial.printf("[DWIN] waiting touch on VP 0x5400 (RX GPIO%d). avail=%d play=%d txDrop=%lu reqDrop=%lu\n",
+                  _rxPin, _serial.available(), _lastPlayState,
+                  (unsigned long)_txOverflow, (unsigned long)_reqOverflow);
   }
 #endif
 }
@@ -888,4 +1301,7 @@ void DwinDisplay::resetQueue() {
   portENTER_CRITICAL(&_txMux);
   _txHead = _txTail = 0;
   portEXIT_CRITICAL(&_txMux);
+  if (_reqQueue != nullptr) {
+    xQueueReset(_reqQueue);
+  }
 }

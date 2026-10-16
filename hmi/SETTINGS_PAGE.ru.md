@@ -19,25 +19,42 @@ Page id: **3** (`dwin_vp::SETTINGS`). Вход с Player: VP `5400`, key **`0006
 | Время | `0009` | page 6 (Time) |
 | Сеть | `0007` | page 4 (Wi‑Fi статус) |
 | О системе | `000A` | page 7 (Info) |
+| Будильники | `001B` | page 10 (Alarms) |
 | Выкл. экран | `000B` | SCREEN_OFF |
 
 Опционально на хабе (read-only): RSSI `50A0`, краткий IP/SSID если заполните Text Display на `50B0` / `5500` (пишет ESP при наличии данных).
 
 **Не класть на хаб:** яркость, API погоды, IR, загрузку плейлиста.
 
-## Page 5 — Audio
+## Page 5 — Audio (EQ)
 
-| Показ (Data Variable) | VP | Ввод (Drag / Inc) | Диапазон |
+Изменения применяются **сразу** (звук + EEPROM). Отдельная кнопка «Сохранить / OK» **не нужна**.
+
+| Показ (Data Variable Int, signed) | VP | Ввод (Drag / IncDec) | Диапазон |
 |---|---:|---|---|
-| Bass | `5302` | `5406` | signed (как в yoRadio) |
-| Middle | `5304` | `5408` | signed |
-| Treble | `5306` | `540A` | signed |
-| Balance | `5308` | `540C` | signed |
+| Bass | `5302` | `5406` | **−40…+6** дБ |
+| Middle | `5304` | `5408` | **−40…+6** дБ |
+| Treble | `5306` | `540A` | **−40…+6** дБ |
+| Balance | `5308` | `540C` | **−16…+16** |
 | Volume (опц.) | `50D4` | `5404` или keys 15/16 | 0…254 |
 
-Назад: key **`0006`** (хаб) или **`0004`** (Player).
+DGUS: Variable type = **Int** (signed), auto-upload ON на Drag/Inc. Min/Max как в таблице.
 
-Прошивка уже обрабатывает `SET_BASS`…`SET_BALANCE` в `dwin_display.cpp`.
+Вход: key **`0008`** (`OPEN_AUDIO`) — прошивка ставит mode `AUDIO` и page 5 (не только `page()` без `_mode`). Назад: **`0006`** / **`0004`**.
+
+## Telnet (не веб!)
+
+Флаг **Telnet server** в веб-UI включает/выключает **CLI на порту 23**, а не HTTP/веб-интерфейс. Веб (`/settings.html`) работает независимо.
+
+На хаб настроек (page 3) или Info можно положить чекбокс:
+
+| Виджет | VP | Тип |
+|---|---:|---|
+| Состояние (Variable Icon 0/1) | `5320` | ESP → DWIN |
+| Dual State Button / Touch | `5416` | DWIN → ESP, пишет `0`/`1` |
+| или кнопка toggle | `5400` key **`001A`** (26) | TOGGLE_TELNET |
+
+Подпись на экране: «Telnet CLI», не «Веб».
 
 ## Page 6 — Time
 
@@ -61,7 +78,19 @@ Page id: **3** (`dwin_vp::SETTINGS`). Вход с Player: VP `5400`, key **`0006
 
 ## Page 7 — Info (read-only)
 
-Версия, IP/RSSI/bitrate, режим WEB/SD — по мере добавления текстов в прошивку. Сейчас достаточно RSSI `50A0`, bitrate `50C0`, clock/date.
+Прошивка пишет все поля ниже — в DGUS положите Text Display / Data Variable:
+
+| Показ | VP | Пример |
+|---|---:|---|
+| Версия | `5660` | `0.9.720` |
+| IP | `50B0` | `192.168.1.10` |
+| SSID | `56A0` | имя сети |
+| RSSI | `50A0` | `-67 dBm` |
+| Bitrate | `50C0` | `320` |
+| Формат | `50E0` | `AAC` |
+| Режим | `5640` | `WEB` / `SD` |
+| № станции | `50D8` | word |
+| Часы / дата / день | `5080` / `5090` / `50F0` | `HH:MM:SS` / `DD.MM.YYYY` / `понедельник` |
 
 ## Команды (напоминание)
 
@@ -75,11 +104,15 @@ Page id: **3** (`dwin_vp::SETTINGS`). Вход с Player: VP `5400`, key **`0006
 | 9 | OPEN_TIME |
 | 10 | OPEN_INFO |
 | 11 | SCREEN_OFF |
+| 27 | OPEN_ALARMS |
+
+Будильники: [ALARMS_PAGE.ru.md](ALARMS_PAGE.ru.md) (3 слота, дни недели, конфликт с текстом на экране, snooze 10 мин).
 
 ## Порядок сборки HMI
 
 1. Page 3 хаб (кнопки выше).
 2. Page 5 Audio.
 3. Page 6 Time.
-4. Page 4 / 7 по желанию.
-5. Generate → SD → прошивка дисплея.
+4. Page 10 / 11 будильники.
+5. Page 4 / 7 по желанию.
+6. Generate → SD → прошивка дисплея.

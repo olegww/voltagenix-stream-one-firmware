@@ -445,6 +445,9 @@ void Config::setShowweather(bool val){
   display.putRequest(SHOWWEATHER);
 }
 void Config::setWeatherKey(const char *val){
+  // Empty / placeholder from UI must not wipe a stored key (GETWEATHER no longer echoes it).
+  if (!val || !val[0]) return;
+  if (val[0] == '*') return;
   saveValue(store.weatherkey, val, WEATHERKEY_LENGTH);
   display.putRequest(NEWMODE, CLEAR);
   display.putRequest(NEWMODE, PLAYER);
@@ -1027,6 +1030,22 @@ void Config::bootInfo() {
     chipId |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
   }
   BOOTLOG("chip:\t\tmodel: %s | rev: %d | id: %lu | cores: %d | psram: %lu", ESP.getChipModel(), ESP.getChipRevision(), chipId, ESP.getChipCores(), ESP.getPsramSize());
+#if defined(STREAM_ONE_BOARD)
+  #define SO_STR(s) #s
+  #define SO_XSTR(s) SO_STR(s)
+  BOOTLOG("board env:\t%s", SO_XSTR(STREAM_ONE_BOARD));
+  #undef SO_XSTR
+  #undef SO_STR
+#endif
+#if defined(BOARD_HAS_PSRAM)
+  if (ESP.getPsramSize() == 0) {
+    BOOTLOG("WARNING:\tBOARD_HAS_PSRAM set but PSRAM size=0 — check wiring/flash config (expect N16R8)");
+  } else {
+    BOOTLOG("audio buf:\tPSRAM ~300KB input buffer enabled");
+  }
+#elif defined(STREAM_ONE_NO_PSRAM)
+  BOOTLOG("audio buf:\tno PSRAM (dev-n8) — small RAM buffer, AAC/HLS may drop");
+#endif
   BOOTLOG("display:\t%d", DSP_MODEL);
   if(VS1053_CS==255) {
     BOOTLOG("audio:\t\t%s (%d, %d, %d)", "I2S", I2S_DOUT, I2S_BCLK, I2S_LRC);

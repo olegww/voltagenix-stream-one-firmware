@@ -291,11 +291,13 @@ void NetServer::processQueue(){
                                   config.store.timeSyncInterval,
                                   config.store.timeSyncIntervalRTC); 
                                   break;
-      case GETWEATHER:    sprintf (wsBuf, "{\"wen\":%d,\"wlat\":\"%s\",\"wlon\":\"%s\",\"wkey\":\"%s\",\"wint\":%d}", 
+      // Never send the raw OWM API key to the browser (LAN sniff / XSS risk).
+      // whasset=1 → key is stored; UI keeps empty field unless user enters a new key.
+      case GETWEATHER:    sprintf (wsBuf, "{\"wen\":%d,\"wlat\":\"%s\",\"wlon\":\"%s\",\"wkey\":\"\",\"whasset\":%d,\"wint\":%d}", 
                                   config.store.showweather, 
                                   config.store.weatherlat, 
                                   config.store.weatherlon, 
-                                  config.store.weatherkey,
+                                  config.store.weatherkey[0] ? 1 : 0,
                                   config.store.weatherSyncInterval); 
                                   break;
       case GETCONTROLS:   sprintf (wsBuf, "{\"vols\":%d,\"enca\":%d,\"irtl\":%d,\"skipup\":%d}", 

@@ -11,8 +11,11 @@ Documentation:
 - [PLAYLIST_PAGE.md](PLAYLIST_PAGE.md) ([RU](PLAYLIST_PAGE.ru.md)) — playlist page
 - [WEATHER.md](WEATHER.md) ([RU](WEATHER.ru.md)) — OpenWeatherMap → DWIN
 - [SETTINGS_PAGE.md](SETTINGS_PAGE.md) ([RU](SETTINGS_PAGE.ru.md)) — settings hub (no ESP brightness)
+- [ALARMS_PAGE.md](ALARMS_PAGE.md) ([RU](ALARMS_PAGE.ru.md)) — 3 alarms, days, conflict, snooze
 - [FONT_GUIDE.md](FONT_GUIDE.md) ([RU](FONT_GUIDE.ru.md)) — classic ASCII `.bin` fonts (not DGUS_2)
 
 All yoRadio application VPs begin at `0x5000`. Do not use former `0x2000`/`0x3000` addresses or pulseoximeter addresses from `src/` (`0x6800`, …) in a new yoRadio HMI. The only lower addresses used by firmware are the fixed DGUS system registers: `0x0082` for brightness and `0x0084` for page switching.
+
+App pages: 1 Player … 7 Info, **10/11 alarms**, 8 screensaver, 9 dialog (firmware does not open 9 for VOL/LOST).
 
 Place source images in `assets/`, fonts in `fonts/`, and the generated DWIN package in `DWIN_SET/`. Copy the generated `DWIN_SET` contents to a FAT32 microSD card, power the display off, insert the card, then power it on. Wait for the DWIN update to finish before removing the card.

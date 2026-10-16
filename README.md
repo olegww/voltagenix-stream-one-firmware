@@ -29,12 +29,14 @@ Fork of [yoRadio](https://github.com/e2002/yoradio) for **Voltagenix Stream One*
 
 ### Возможности этой ветки
 
-- Player: play/stop, prev/next, громкость (кнопки + слайдер), станция/трек (scroll), часы, bitrate, RSSI, VU
+- Player: play/stop, prev/next, громкость (кнопки + слайдер), станция/трек (scroll), часы `HH:MM:SS`, дата, день недели, IP, формат потока (AAC/MP3/…), bitrate, RSSI, VU
 - Плейлист на дисплее (страницы, выбор строки)
-- Погода OpenWeatherMap → VP и иконки на DWIN
+- EQ (page 5) с live-применением; Telnet CLI (не веб) — VP `5320` / `5416`
+- **Будильники:** 3 слота, дни недели, конфликт с текстом на экране, snooze 10 мин / dismiss ([ALARMS_PAGE.ru.md](hmi/ALARMS_PAGE.ru.md))
+- Погода OpenWeatherMap → VP и иконки на DWIN (**HTTPS**; API key не уходит в WebSocket)
 - Хаб настроек на дисплее (навигация по экранам); яркость — **локально в меню DGUS**, без ESP
 - Веб: штатный `/settings.html`, плейлист, Wi‑Fi AP-форма на `192.168.4.1`
-- Отдельная задача UART/DWIN (~10 мс), чтобы касания не терялись при блокировке отрисовки
+- Отдельная задача UART/DWIN (~10 мс), TX/request queues; `ready` только после `LINK OK`
 
 Графика HMI в репозиторий не входит: экраны собираются в **DGUS Tool** по контракту VP.
 
@@ -67,11 +69,21 @@ Fork of [yoRadio](https://github.com/e2002/yoradio) for **Voltagenix Stream One*
 
 ### Сборка (PlatformIO)
 
+Два окружения (вариант B — гибкая разработка):
+
+| Env | Железо | PSRAM | Назначение |
+|---|---|---|---|
+| **`stream-one-n16r8`** (default) | ESP32-S3 **N16R8** | 8 MB OPI | релиз / основной продукт |
+| **`dev-n8`** | ESP32-S3 **N8** и аналоги | нет | стенд; буфер аудио маленький |
+
 ```bash
-pio run -t uploadfs          # SPIFFS: yoRadio/data (веб-UI)
-pio run -t upload            # прошивка
-pio device monitor           # 115200
+pio run -e stream-one-n16r8 -t uploadfs   # SPIFFS (веб-UI)
+pio run -e stream-one-n16r8 -t upload     # прошивка (продукт)
+pio run -e dev-n8 -t upload               # прошивка на плату без PSRAM
+pio device monitor                        # 115200
 ```
+
+Без `-e` используется `default_envs = stream-one-n16r8`. В boot-логе смотрите строку `chip: … psram:` — для N16R8 ожидается ~8 MB.
 
 При необходимости: `--upload-port COMx`. После смены SPIFFS очистите кэш браузера или откройте страницу в приватном окне.
 
@@ -91,6 +103,7 @@ Arduino IDE: открыть `yoRadio/yoRadio.ino`, плата **ESP32-S3 Dev Mod
 | [PLAYLIST_PAGE.ru.md](hmi/PLAYLIST_PAGE.ru.md) | плейлист |
 | [WEATHER.ru.md](hmi/WEATHER.ru.md) | погода |
 | [SETTINGS_PAGE.ru.md](hmi/SETTINGS_PAGE.ru.md) | хаб настроек и связанные страницы |
+| [ALARMS_PAGE.ru.md](hmi/ALARMS_PAGE.ru.md) | 3 будильника, дни, конфликт, snooze |
 | [FONT_GUIDE.ru.md](hmi/FONT_GUIDE.ru.md) | классические `.bin` шрифты |
 
 VP приложения: от `0x5000`. Системные DGUS: `0x0082` (яркость), `0x0084` (страница). Готовый пакет с SD → `DWIN_SET` на FAT32 microSD при выключенной панели.
@@ -101,6 +114,11 @@ VP приложения: от `0x5000`. Системные DGUS: `0x0082` (яр�
 
 - Добавлен стек DWIN (`yoRadio/src/displays/dwin/`)
 - Целевая конфигурация — ESP32-S3 + DWIN + PCM5102
+- Будильники: 3 слота, дни недели, SPIFFS, snooze/dismiss ([ALARMS_PAGE.ru.md](hmi/ALARMS_PAGE.ru.md))
+- `DSP_CUSTOM` = DWIN UART (без `displayCustom.h` / TFT widgets)
+- OWM: HTTPS, ключ не в WebSocket; VOL/LOST не уходят на page 9
+- `PLAY_STATE` только по факту `PSTART`/`PSTOP`; `OPEN_AUDIO` выставляет mode `AUDIO`
+- Wi‑Fi lost/reconnect обрабатываются в `network.loop()` (без `delay` в callback)
 - Документация HMI и проверенная схема подключения
 - Upstream-фичи (MQTT, HA, множество TFT) в дереве могут оставаться, но рабочий путь этой сборки — DWIN
 
@@ -128,12 +146,14 @@ Boot log `display: 101` means the DWIN driver. `display: 0` (headless) is not th
 
 ### Features in this fork
 
-- Player: play/stop, prev/next, volume (buttons + slider), station/title scroll, clock, bitrate, RSSI, VU
+- Player: play/stop, prev/next, volume (buttons + slider), station/title scroll, clock `HH:MM:SS`, date, weekday, IP, stream format (AAC/MP3/…), bitrate, RSSI, VU
 - On-display playlist (paging, row select)
-- OpenWeatherMap → DWIN VPs and weather icons
-- On-display settings hub (screen navigation); panel brightness is **local in DGUS**, not via ESP
+- EQ (page 5) applied live; Telnet CLI (not web UI) — VP `5320` / `5416`
+- **Alarms:** 3 slots, weekdays, visible conflict text, 10 min snooze / dismiss ([ALARMS_PAGE.md](hmi/ALARMS_PAGE.md))
+- OpenWeatherMap → DWIN VPs (**HTTPS**; API key never sent over WebSocket)
+- On-display settings hub; panel brightness is **local in DGUS**, not via ESP
 - Web: stock `/settings.html`, playlist tools, captive AP form at `192.168.4.1`
-- Dedicated UART/DWIN task (~10 ms) so touches still work while drawing is locked
+- Dedicated UART/DWIN task (~10 ms), TX/request queues; `ready` only after `LINK OK`
 
 HMI artwork is **not** in the repo: build pages in **DGUS Tool** using the VP contract.
 
@@ -166,11 +186,21 @@ Most “no sound” cases are an floating SCK. Line-level out needs an amp or ac
 
 ### Build (PlatformIO)
 
+Two envs (option B — flexible for development):
+
+| Env | Hardware | PSRAM | Use |
+|---|---|---|---|
+| **`stream-one-n16r8`** (default) | ESP32-S3 **N16R8** | 8 MB OPI | release / product |
+| **`dev-n8`** | ESP32-S3 **N8** etc. | none | lab; small audio buffer |
+
 ```bash
-pio run -t uploadfs          # SPIFFS: yoRadio/data (web UI)
-pio run -t upload            # firmware
-pio device monitor           # 115200
+pio run -e stream-one-n16r8 -t uploadfs
+pio run -e stream-one-n16r8 -t upload
+pio run -e dev-n8 -t upload
+pio device monitor
 ```
+
+Default env is `stream-one-n16r8`. Check boot log `chip: … psram:` (~8 MB on N16R8).
 
 Optional: `--upload-port COMx`. After SPIFFS changes, hard-refresh the browser or use a private window.
 
@@ -190,6 +220,7 @@ See [`hmi/`](hmi/):
 | [PLAYLIST_PAGE.md](hmi/PLAYLIST_PAGE.md) | playlist page |
 | [WEATHER.md](hmi/WEATHER.md) | weather |
 | [SETTINGS_PAGE.md](hmi/SETTINGS_PAGE.md) | settings hub and related pages |
+| [ALARMS_PAGE.md](hmi/ALARMS_PAGE.md) | 3 alarms, days, conflict, snooze |
 | [FONT_GUIDE.md](hmi/FONT_GUIDE.md) | classic `.bin` fonts |
 
 App VPs start at `0x5000`. DGUS system regs: `0x0082` (brightness), `0x0084` (page). Flash the generated `DWIN_SET` from a FAT32 microSD with the panel powered off.
@@ -200,6 +231,11 @@ Button debug: `DWIN_DEBUG 1` in `myoptions.h`, Serial 115200 — checklist in `D
 
 - DWIN stack under `yoRadio/src/displays/dwin/`
 - Target path: ESP32-S3 + DWIN + PCM5102
+- Alarms: 3 slots, SPIFFS, snooze/dismiss ([ALARMS_PAGE.md](hmi/ALARMS_PAGE.md))
+- `DSP_CUSTOM` = DWIN UART (no `displayCustom.h` / TFT widgets)
+- OWM over HTTPS; key not in WebSocket; `VOL`/`LOST` do not open page 9
+- `PLAY_STATE` follows real `PSTART`/`PSTOP`; `OPEN_AUDIO` sets mode `AUDIO`
+- Wi‑Fi lost/reconnect work deferred to `network.loop()` (no `delay` in callbacks)
 - HMI docs and a proven wiring table
 - Upstream extras (MQTT, HA, many TFTs) may still exist in-tree; this product path is DWIN
 

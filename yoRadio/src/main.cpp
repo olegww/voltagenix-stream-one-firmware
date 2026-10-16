@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "core/options.h"
 #include "core/config.h"
+#include "core/alarms.h"
 #include "pluginsManager/pluginsManager.h"
 #include "core/telnet.h"
 #include "core/player.h"
@@ -74,6 +75,7 @@ void setup() {
   if (yoradio_on_setup) yoradio_on_setup();
   pm.on_setup();
   config.init();
+  alarms.begin();
   display.init();
   player.init();
   network.begin();
@@ -107,6 +109,7 @@ void setup() {
 
 void loop() {
   timekeeper.loop1();
+  network.loop();
   telnet.loop();
   // Always drain the player queue so DWIN buttons work in AP commissioning.
   player.loop();

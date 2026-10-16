@@ -1,6 +1,8 @@
 # Погода на DWIN (OpenWeatherMap)
 
-Веб: **`/settings.html` → Weather** — show weather, lat/lon, API key → Apply.
+Web: **`/settings.html` → Weather** — show weather, lat/lon, API key → Apply.
+
+Firmware: **HTTPS** to OWM, fixed response buffer (no VLA). API key is **not** sent over WebSocket (`GETWEATHER` → `wkey:""`, `whasset:0/1`). An empty key field on save does **not** clear a stored key.
 
 ## Variable Icon — условие (VP `5310`)
 

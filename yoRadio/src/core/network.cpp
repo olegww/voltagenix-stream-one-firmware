@@ -22,36 +22,58 @@
 MyNetwork network;
 
 void MyNetwork::WiFiReconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  // Wi‑Fi event context: only flags — heavy work in network.loop().
   network.beginReconnect = false;
-  player.lockOutput = false;
-  delay(100);
-  display.putRequest(NEWMODE, PLAYER);
-  if(config.getMode()==PM_SDCARD) {
-    network.status=CONNECTED;
-    display.putRequest(NEWIP, 0);
-  }else{
-    display.putRequest(NEWMODE, PLAYER);
-    if (network.lostPlaying) player.sendCommand({PR_PLAY, config.lastStation()});
-  }
-  #ifdef MQTT_ROOT_TOPIC
-    connectToMqtt();
-  #endif
+  network._evtGotIp = 1;
 }
 
 void MyNetwork::WiFiLostConnection(WiFiEvent_t event, WiFiEventInfo_t info){
   if(!network.beginReconnect){
-    Serial.printf("Lost connection, reconnecting to %s...\n", config.ssids[config.store.lastSSID-1].ssid);
-    if(config.getMode()==PM_SDCARD) {
-      network.status=SDREADY;
-      display.putRequest(NEWIP, 0);
-    }else{
-      network.lostPlaying = player.isRunning();
-      if (network.lostPlaying) { player.lockOutput = true; player.sendCommand({PR_STOP, 0}); }
-      display.putRequest(NEWMODE, LOST);
-    }
+    network._evtLost = 1;
   }
   network.beginReconnect = true;
   WiFi.reconnect();
+}
+
+void MyNetwork::_handleLost() {
+  Serial.printf("Lost connection, reconnecting to %s...\n",
+                config.ssids[config.store.lastSSID - 1].ssid);
+  if (config.getMode() == PM_SDCARD) {
+    status = SDREADY;
+    display.putRequest(NEWIP, 0);
+  } else {
+    lostPlaying = player.isRunning();
+    if (lostPlaying) {
+      player.lockOutput = true;
+      player.sendCommand({PR_STOP, 0});
+    }
+    display.putRequest(NEWMODE, LOST);
+  }
+}
+
+void MyNetwork::_handleReconnected() {
+  player.lockOutput = false;
+  display.putRequest(NEWMODE, PLAYER);
+  if (config.getMode() == PM_SDCARD) {
+    status = CONNECTED;
+    display.putRequest(NEWIP, 0);
+  } else {
+    if (lostPlaying) player.sendCommand({PR_PLAY, config.lastStation()});
+  }
+#ifdef MQTT_ROOT_TOPIC
+  connectToMqtt();
+#endif
+}
+
+void MyNetwork::loop() {
+  if (_evtLost) {
+    _evtLost = 0;
+    _handleLost();
+  }
+  if (_evtGotIp) {
+    _evtGotIp = 0;
+    _handleReconnected();
+  }
 }
 
 bool MyNetwork::wifiBegin(bool silent){

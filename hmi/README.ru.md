@@ -13,10 +13,13 @@
 | [PLAYLIST_PAGE.ru.md](PLAYLIST_PAGE.ru.md) | экран плейлиста |
 | [WEATHER.ru.md](WEATHER.ru.md) | OpenWeatherMap → DWIN |
 | [SETTINGS_PAGE.ru.md](SETTINGS_PAGE.ru.md) | хаб настроек (без яркости через ESP) |
+| [ALARMS_PAGE.ru.md](ALARMS_PAGE.ru.md) | 3 будильника, дни, конфликт, snooze |
 | [FONT_GUIDE.ru.md](FONT_GUIDE.ru.md) | классические ASCII `.bin` шрифты (не DGUS_2) |
 
 ## Правила адресов
 
 Все прикладные VP yoRadio начинаются с `0x5000`. Не используйте адреса пульсоксиметра из `src/` (`0x6800` и т.п.). Системные регистры DGUS: `0x0082` (яркость), `0x0084` (смена страницы).
+
+Страницы приложения: 1 Player … 7 Info, **10/11 будильники**, 8 заставка, 9 диалог (прошивка не открывает 9 на VOL/LOST).
 
 Исходники картинок — в `assets/`, шрифты — в `fonts/`, собранный пакет — в `DWIN_SET/`. Содержимое `DWIN_SET` копируйте на FAT32 microSD, дисплей выключите, вставьте карту, включите и дождитесь окончания обновления.

@@ -4,6 +4,8 @@
 
 Веб: **`/settings.html` → Weather** — show weather, lat/lon, API key → Apply.
 
+Прошивка: **HTTPS** к OWM, фиксированный буфер ответа (без VLA). API key **не** уходит в WebSocket (`GETWEATHER` → `wkey:""`, `whasset:0/1`). Пустое поле key при сохранении **не** стирает уже сохранённый ключ.
+
 ## Variable Icon — условие (VP `5310`)
 
 | Поле DGUS | Значение |

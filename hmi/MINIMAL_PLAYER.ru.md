@@ -8,11 +8,14 @@
 
 | Виджет | VP | Тип DGUS | Направление |
 |---|---:|---|---|
-| Станция | `0x5000` | Scrolling text, coding **8bit**, шрифт с кириллицей | ESP → DWIN (CP1251) |
-| Трек (scroll) | `0x5040` | **Scrolling text** only (данные в `5043`) | ESP → DWIN (CP1251) |
+| Станция | `0x5000` | Scrolling text, coding **8bit**, Text Length **56** | ESP → DWIN (CP1251) |
+| Трек (scroll) | `0x5040` | **Scrolling text** only (данные в `5043`), Text Length **56** | ESP → DWIN (CP1251) |
 | Трек (статика, опц.) | `0x5600` | **Text Display**, Length ≤ 64 | ESP → DWIN (CP1251) |
-| Часы | `0x5080` | Text display | ESP → DWIN |
-| Дата | `0x5090` | Text display | ESP → DWIN |
+| Часы | `0x5080` | Text display, Length ≥ 8 | ESP → DWIN (`HH:MM:SS`) |
+| Дата | `0x5090` | Text display, Length ≥ 10 | ESP → DWIN (`DD.MM.YYYY`) |
+| День недели | `0x50F0` | Text display, Length ≥ 16 | ESP → DWIN (CP1251) |
+| IP | `0x50B0` | Text display, Length ≥ 16 | ESP → DWIN |
+| Формат потока | `0x50E0` | Text display, Length ≥ 8 | ESP → DWIN (`AAC`/`MP3`/…) |
 | Громкость | `0x50D4` | Data variable (word) | ESP → DWIN |
 | Play state | `0x50D6` | **Variable Icon** (word 0/1) | ESP → DWIN |
 | VU left | `0x50D0` | Data variable (word) | ESP → DWIN |
@@ -33,6 +36,7 @@
 | Поле | Значение |
 |---|---|
 | VP (0x) в DGUS | `5000` (станция) / `5040` (трек) |
+| Text Length | **56** (как `SCROLL_TEXT_LEN` в прошивке) |
 | Coding mode | `0x00=8bit` |
 | FONT0_ID | ASCII/BIN шрифт с нужными глифами |
 
@@ -57,11 +61,11 @@
    - индекс **1** — Playing (иконка «Pause» / две полоски) — идёт эфир.
 4. Data Format = Int / word.
 
-Прошивка сама пишет в `0x50D6`:
+Прошивка пишет в `0x50D6` **только по факту** старта/стопа плеера (`PSTART` / `PSTOP` / `syncPlayState`), а не сразу при нажатии Play:
 - `0` — остановлено;
 - `1` — играет (в том числе после reboot, если smartstart возобновил эфир).
 
-В Serial при смене состояния: `[DWIN] PLAY_STATE 0x50D6=0` или `=1`.
+В Serial при смене состояния: `[DWIN] PLAY_STATE 0x50D6=0` или `=1` / `PLAY_STATE sync …`.
 
 ### 2) Кнопка нажатия — Return Key Code
 
@@ -155,10 +159,17 @@
 
 | Виджет | VP | Длина | Формат |
 |---|---:|---:|---|
-| Часы | **`5080`** | ≥ 6 | `HH:MM` |
-| Дата (опц.) | **`5090`** | ≥ 11 | `DD.MM.YYYY` |
+| Часы | **`5080`** | ≥ 8 | `HH:MM:SS` |
+| Дата | **`5090`** | ≥ 10 | `DD.MM.YYYY` |
+| День недели | **`50F0`** | ≥ 16 | `понедельник` (CP1251) |
+| IP | **`50B0`** | ≥ 16 | `192.168.1.10` |
+| Формат | **`50E0`** | ≥ 8 | `AAC` / `MP3` / `FLC` / `-` |
 | RSSI/dbm | **`50A0`** | ≥ 10 | `-67 dBm` |
 | Bitrate/kbps | **`50C0`** | ≥ 6 | `320` |
+| № станции | **`50D8`** | Data Variable Int | `1`…N |
+| Режим | **`5640`** | ≥ 8 | `WEB` / `SD` |
+| Версия | **`5660`** | ≥ 16 | `0.9.720` |
+| SSID | **`56A0`** | ≥ 32 | имя сети |
 
 Coding **8bit**, шрифт с цифрами. Подписи `dbm` / `kbps` — картинкой рядом.
 
