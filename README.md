@@ -31,7 +31,7 @@ Fork of [yoRadio](https://github.com/e2002/yoradio) for **Voltagenix Stream One*
 
 - Player: play/stop, prev/next, громкость (кнопки + слайдер), станция/трек (scroll), часы `HH:MM:SS`, дата, день недели, IP, формат потока (AAC/MP3/…), bitrate, RSSI, VU
 - Плейлист на дисплее (страницы, выбор строки)
-- EQ (page 5) с live-применением; Telnet CLI (не веб) — VP `5320` / `5416`
+- EQ (page 5) с live-применением; Telnet CLI — VP `5320` / `5416`
 - **Будильники:** 3 слота, дни недели, конфликт с текстом на экране, snooze 10 мин / dismiss ([ALARMS_PAGE.ru.md](hmi/ALARMS_PAGE.ru.md))
 - Погода OpenWeatherMap → VP и иконки на DWIN (**HTTPS**; API key не уходит в WebSocket)
 - Хаб настроек на дисплее (навигация по экранам); яркость — **локально в меню DGUS**, без ESP
@@ -146,7 +146,7 @@ Boot log `display: 101` means the DWIN driver is active.
 
 - Player: play/stop, prev/next, volume (buttons + slider), station/title scroll, clock `HH:MM:SS`, date, weekday, IP, stream format (AAC/MP3/…), bitrate, RSSI, VU
 - On-display playlist (paging, row select)
-- EQ (page 5) applied live; Telnet CLI (not web UI) — VP `5320` / `5416`
+- EQ (page 5) applied live; Telnet CLI — VP `5320` / `5416`
 - **Alarms:** 3 slots, weekdays, visible conflict text, 10 min snooze / dismiss ([ALARMS_PAGE.md](hmi/ALARMS_PAGE.md))
 - OpenWeatherMap → DWIN VPs (**HTTPS**; API key never sent over WebSocket)
 - On-display settings hub; panel brightness is **local in DGUS**, not via ESP

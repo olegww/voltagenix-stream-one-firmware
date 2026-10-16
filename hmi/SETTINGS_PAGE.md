@@ -40,9 +40,9 @@ In DGUS: Int (signed), auto-upload ON, Min/Max as in the table.
 
 Open: key `0008`. Back: `0006` or `0004`.
 
-## Telnet is not the web UI
+## Telnet CLI
 
-The “Telnet server” flag in the web settings enables a **CLI on port 23**, not the HTTP site. `/settings.html` works independently.
+The “Telnet server” flag in the web settings enables a CLI on port 23.
 
 On the hub or About page you can add:
 
@@ -51,8 +51,6 @@ On the hub or About page you can add:
 | State icon 0/1 | `5320` |
 | Toggle | `5416` (writes 0/1) |
 | or button | `5400` key `001A` (26) |
-
-Label it “Telnet CLI”, not “Web”.
 
 ## Page 6 — Time
 

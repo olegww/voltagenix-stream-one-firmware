@@ -64,7 +64,7 @@ On Wi‑Fi loss and while adjusting volume the firmware **stays on Player** (it 
 | `0x5302` / `04` / `06` | Signed number | Bass / middle / treble (−40…+6) |
 | `0x5308` | Signed number | Balance (−16…+16) |
 | `0x530A` / `0x530C` | Signed number | Time zone hour / minute |
-| `0x5320` | 0 / 1 | Telnet CLI (not the web UI) |
+| `0x5320` | 0 / 1 | Telnet CLI |
 | `0x5310` | Number | Weather icon 0…9 |
 | `0x5312` / `0x5314` | Signed number | Temp / feels-like °C |
 | `0x5316` / `5318` / `531A` | Number | Pressure mmHg / humidity % / wind m/s |
